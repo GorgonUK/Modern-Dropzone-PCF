@@ -6,7 +6,6 @@ This project contains a React component designed to integrate with Microsoft Dyn
 
 - **File Upload**: Drag and drop files or click to select files to upload.
 - **File Management**: View, download, and delete files directly from a Dynamics 365 record.
-- **Dynamic Display**: Only allows file interaction when the Dynamics record is created.
 - **Responsive Design**: Adapts to various screen sizes and devices.
 
 ## Installation
