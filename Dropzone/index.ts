@@ -7,7 +7,7 @@ export class Dropzone implements ComponentFramework.ReactControl<IInputs, IOutpu
     private notifyOutputChanged: () => void;
     private webAPI: ComponentFramework.WebApi;
     public init(context: ComponentFramework.Context<IInputs>, notifyOutputChanged: () => void, state: ComponentFramework.Dictionary, container: HTMLDivElement): void {
-      console.log("1.2");
+      console.log("1.3");
         this.theContainer = container;
         this.notifyOutputChanged = notifyOutputChanged;
         this.webAPI = context.webAPI;

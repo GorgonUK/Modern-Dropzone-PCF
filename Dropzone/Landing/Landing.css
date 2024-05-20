@@ -86,3 +86,50 @@ p.file-size {
   min-width: 32px;
   height: 32px;
 }
+
+.file-box.selected {
+  border: 2px;
+  border-color: #0078d4;
+  background: aliceblue;
+}
+
+.file-box:hover{
+  border-color: #7f97ac;
+}
+
+.ribbon-dropzone-wrapper {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+@keyframes easeInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes easeOutToBottom {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+.easeIn {
+  animation: easeInFromBottom 0.5s ease forwards;
+}
+
+.easeOut {
+  animation: easeOutToBottom 0.5s ease forwards;
+}
