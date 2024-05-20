@@ -19,6 +19,7 @@
     "react-dom": "16.8.6",
     "react-dropzone": "^14.2.3",
     "react-file-icon": "^1.4.0",
+    "react-tippy": "^1.4.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

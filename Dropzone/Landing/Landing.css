@@ -1,5 +1,6 @@
 .dropzone {
   width: 100%;
+  min-height: 100px;
   margin: 0 auto;
   padding: 20px;
   border-radius: 5px;
@@ -78,7 +79,7 @@ p.file-size {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 10px;
+  gap: 0px;
 }
 
 .icon-button {
