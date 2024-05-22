@@ -25,6 +25,7 @@ import {
   ITextStyles,
   IStackTokens,
   CommandButton,
+  SearchBox,
 } from "@fluentui/react";
 import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
@@ -38,6 +39,8 @@ interface LandingState {
   files: FileData[];
   editingFileId?: string;
   selectedFiles: string[];
+  searchText: string;
+  sortAsc: boolean;
 }
 
 type FileAction = "edit" | "download" | "duplicate" | "delete";
@@ -46,8 +49,14 @@ const ribbonStyles: IStackStyles = {
   root: {
     alignItems: "center",
     display: "flex",
-    width: '100%',
+    width: "100%",
     justifyContent: "space-between",
+  },
+};
+
+const searchRibbonStyles: IStackStyles = {
+  root: {
+    marginBottom: "8px",
   },
 };
 
@@ -70,6 +79,8 @@ export class Landing extends Component<LandingProps, LandingState> {
       files: [],
       editingFileId: undefined,
       selectedFiles: [],
+      searchText: "",
+      sortAsc: true,
     };
   }
 
@@ -322,47 +333,98 @@ export class Landing extends Component<LandingProps, LandingState> {
 
     this.setState({ selectedFiles: [] });
   };
+  handleSearch = (event: any, newValue?: string) => {
+    this.setState({ searchText: newValue || "" });
+  };
+
+  toggleSortOrder = () => {
+    this.setState((prevState) => ({ sortAsc: !prevState.sortAsc }));
+  };
+
+  getFilteredAndSortedFiles = () => {
+    const { files, searchText, sortAsc } = this.state;
+    return files
+      .filter((file) =>
+        file.filename.toLowerCase().includes(searchText.toLowerCase())
+      )
+      .sort((a, b) => {
+        if (sortAsc) {
+          return a.filename.localeCompare(b.filename);
+        } else {
+          return b.filename.localeCompare(a.filename);
+        }
+      });
+  };
 
   renderRibbon = () => {
+    const files = this.getFilteredAndSortedFiles();
     const { selectedFiles } = this.state;
+    const { sortAsc } = this.state;
     return (
-      <Stack horizontal styles={ribbonStyles} className="easeIn">
-        <Stack horizontal tokens={ribbonStackTokens}>
-          <CommandButton
-            iconProps={{ iconName: "Edit" }}
-            text="Edit"
-            onClick={() => this.performActionOnSelectedFiles("edit")}
-            disabled={selectedFiles.length === 0}
-            className="icon-button"
-          />
-          <CommandButton
-            iconProps={{ iconName: "Download" }}
-            text="Download"
-            onClick={() => this.performActionOnSelectedFiles("download")}
-            disabled={selectedFiles.length === 0}
-            className="icon-button"
-          />
-          <CommandButton
-            iconProps={{ iconName: "Copy" }}
-            text="Duplicate"
-            onClick={() => this.performActionOnSelectedFiles("duplicate")}
-            disabled={selectedFiles.length === 0}
-            className="icon-button"
-          />
-          <CommandButton
-            iconProps={{ iconName: "Delete" }}
-            text="Delete"
-            onClick={() => this.performActionOnSelectedFiles("delete")}
-            disabled={selectedFiles.length === 0}
-            className="icon-button"
-          />
+      <>
+        <Stack horizontal styles={searchRibbonStyles} className="easeIn">
+          <Stack horizontal tokens={ribbonStackTokens}>
+            <SearchBox
+              placeholder="Search files..."
+              onSearch={(newValue) => this.handleSearch(null, newValue)}
+              onChange={this.handleSearch}
+              styles={{ root: { width: 200 } }}
+              underlined={true}
+            />
+            <IconButton
+              iconProps={{
+                iconName: sortAsc ? "SortAscending" : "SortDescending",
+              }}
+              title={sortAsc ? "Sort ascending (A-Z)" : "Sort descending (Z-A)"}
+              ariaLabel={
+                sortAsc ? "Sort files from A to Z" : "Sort files from Z to A"
+              }
+              onClick={this.toggleSortOrder}
+            />
+          </Stack>
         </Stack>
-        <Stack>
-        <Text styles={textStyles}>{`${selectedFiles.length} ${
-          selectedFiles.length === 1 ? "file" : "files"
-        } selected`}</Text>
-        </Stack>
-      </Stack>
+
+        {selectedFiles.length > 0 && (
+          <Stack horizontal styles={ribbonStyles} className="easeIn">
+            <Stack horizontal tokens={ribbonStackTokens}>
+              <CommandButton
+                iconProps={{ iconName: "Edit" }}
+                text="Edit"
+                onClick={() => this.performActionOnSelectedFiles("edit")}
+                disabled={selectedFiles.length === 0}
+                className="icon-button"
+              />
+              <CommandButton
+                iconProps={{ iconName: "Download" }}
+                text="Download"
+                onClick={() => this.performActionOnSelectedFiles("download")}
+                disabled={selectedFiles.length === 0}
+                className="icon-button"
+              />
+              <CommandButton
+                iconProps={{ iconName: "Copy" }}
+                text="Duplicate"
+                onClick={() => this.performActionOnSelectedFiles("duplicate")}
+                disabled={selectedFiles.length === 0}
+                className="icon-button"
+              />
+              <CommandButton
+                iconProps={{ iconName: "Delete" }}
+                text="Delete"
+                onClick={() => this.performActionOnSelectedFiles("delete")}
+                disabled={selectedFiles.length === 0}
+                className="icon-button"
+              />
+            </Stack>
+
+            <Stack>
+              <Text styles={textStyles}>{`${selectedFiles.length} ${
+                selectedFiles.length === 1 ? "file" : "files"
+              } selected`}</Text>
+            </Stack>
+          </Stack>
+        )}
+      </>
     );
   };
 
@@ -376,7 +438,8 @@ export class Landing extends Component<LandingProps, LandingState> {
   };
 
   render() {
-    const { files, selectedFiles, editingFileId } = this.state;
+    const { selectedFiles, editingFileId } = this.state;
+    const files = this.getFilteredAndSortedFiles();
     const isEmpty = files.length === 0;
     const entityIdExists = (this.props.context as any).page.entityId;
     const editingFile = files.find((file) => file.noteId === editingFileId);
@@ -448,7 +511,8 @@ export class Landing extends Component<LandingProps, LandingState> {
           </Dialog>
         )}
         <div className="ribbon-dropzone-wrapper">
-          {selectedFiles.length > 0 && this.renderRibbon()}
+          {this.renderRibbon()}
+
           <Dropzone onDrop={this.handleDrop}>
             {({ getRootProps, getInputProps }) => (
               <div className="dropzone-wrapper">
