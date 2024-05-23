@@ -12,20 +12,19 @@ import {
 import { FileData } from "../Interfaces";
 import "./Landing.css";
 import {
-  IconButton,
   DefaultButton,
   PrimaryButton,
   TextField,
   Dialog,
   DialogType,
   DialogFooter,
-  Text,
   Stack,
   IStackStyles,
-  ITextStyles,
   IStackTokens,
   CommandButton,
   SearchBox,
+  Spinner,
+  SpinnerSize,
 } from "@fluentui/react";
 import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
@@ -41,6 +40,7 @@ interface LandingState {
   selectedFiles: string[];
   searchText: string;
   sortAsc: boolean;
+  isLoading: boolean;
 }
 
 type FileAction = "edit" | "download" | "duplicate" | "delete";
@@ -56,15 +56,7 @@ const ribbonStyles: IStackStyles = {
 
 const searchRibbonStyles: IStackStyles = {
   root: {
-    marginBottom: "8px",
-  },
-};
-
-const textStyles: ITextStyles = {
-  root: {
-    margin: "0 10px",
-    fontWeight: "normal",
-    color: "#000",
+    marginBottom: "0px",
   },
 };
 
@@ -81,11 +73,14 @@ export class Landing extends Component<LandingProps, LandingState> {
       selectedFiles: [],
       searchText: "",
       sortAsc: true,
+      isLoading: true,
     };
   }
 
   componentDidMount() {
-    this.loadExistingFiles();
+    this.loadExistingFiles().then(() => {
+      this.setState({ isLoading: false });
+    });
   }
 
   getFileExtension(filename: string): DefaultExtensionType {
@@ -255,10 +250,6 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.setState({ editingFileId: noteId });
   };
 
-  handleEdit = (noteId?: string) => {
-    this.toggleEditModal(noteId);
-  };
-
   saveChanges = async (
     noteId: string,
     subject: string,
@@ -320,9 +311,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         return;
       }
 
-      if (action === "edit") {
-        this.handleEdit(noteId);
-      } else if (action === "duplicate") {
+      if (action === "duplicate") {
         this.duplicateFile(noteId);
       } else if (action === "download") {
         this.downloadFile(file);
@@ -357,73 +346,86 @@ export class Landing extends Component<LandingProps, LandingState> {
   };
 
   renderRibbon = () => {
-    const files = this.getFilteredAndSortedFiles();
     const { selectedFiles } = this.state;
-    const { sortAsc } = this.state;
+
     return (
       <>
-        <Stack horizontal styles={searchRibbonStyles} className="easeIn">
-          <Stack horizontal tokens={ribbonStackTokens}>
-            <SearchBox
-              placeholder="Search files..."
-              onSearch={(newValue) => this.handleSearch(null, newValue)}
-              onChange={this.handleSearch}
-              styles={{ root: { width: 200 } }}
-              underlined={true}
-            />
-            <IconButton
-              iconProps={{
-                iconName: sortAsc ? "SortAscending" : "SortDescending",
-              }}
-              title={sortAsc ? "Sort ascending (A-Z)" : "Sort descending (Z-A)"}
-              ariaLabel={
-                sortAsc ? "Sort files from A to Z" : "Sort files from Z to A"
-              }
-              onClick={this.toggleSortOrder}
-            />
-          </Stack>
-        </Stack>
-
-        {selectedFiles.length > 0 && (
+        <Stack
+          horizontal
+          styles={searchRibbonStyles}
+          className="easeIn wideRibbon"
+        >
           <Stack horizontal styles={ribbonStyles} className="easeIn">
             <Stack horizontal tokens={ribbonStackTokens}>
-              <CommandButton
-                iconProps={{ iconName: "Edit" }}
-                text="Edit"
-                onClick={() => this.performActionOnSelectedFiles("edit")}
-                disabled={selectedFiles.length === 0}
-                className="icon-button"
-              />
-              <CommandButton
-                iconProps={{ iconName: "Download" }}
-                text="Download"
-                onClick={() => this.performActionOnSelectedFiles("download")}
-                disabled={selectedFiles.length === 0}
-                className="icon-button"
-              />
-              <CommandButton
-                iconProps={{ iconName: "Copy" }}
-                text="Duplicate"
-                onClick={() => this.performActionOnSelectedFiles("duplicate")}
-                disabled={selectedFiles.length === 0}
-                className="icon-button"
-              />
-              <CommandButton
-                iconProps={{ iconName: "Delete" }}
-                text="Delete"
-                onClick={() => this.performActionOnSelectedFiles("delete")}
-                disabled={selectedFiles.length === 0}
-                className="icon-button"
+              <SearchBox
+                placeholder="Search files..."
+                onSearch={(newValue) => this.handleSearch(null, newValue)}
+                onChange={this.handleSearch}
+                styles={{
+                  root: {
+                    width: 200,
+                    border: "none",
+                    boxShadow: "none",
+                    position: "relative",
+                    selectors: {
+                      ":hover": {
+                        border: "none",
+                        boxShadow: "none",
+                      },
+                      ":focus": {
+                        border: "none",
+                        boxShadow: "none",
+                      },
+                      "::after": {
+                        content: "none !important",
+                      },
+                    },
+                  },
+                  field: {
+                    border: "none",
+                    boxShadow: "none",
+                  },
+                  iconContainer: {
+                    color: "rgb(17, 94, 163)",
+                    selectors: {
+                      ":hover": {
+                        color: "rgb(17, 94, 163)",
+                      },
+                      ":focus": {
+                        color: "rgb(17, 94, 163)",
+                      },
+                    },
+                  },
+                }}
               />
             </Stack>
-
-            <Stack>
-              <Text styles={textStyles}>{`${selectedFiles.length} ${
-                selectedFiles.length === 1 ? "file" : "files"
-              } selected`}</Text>
-            </Stack>
+            {selectedFiles.length > 0 && (
+              <Stack horizontal tokens={ribbonStackTokens}>
+                <CommandButton
+                  iconProps={{ iconName: "Download" }}
+                  text="Download"
+                  onClick={() => this.performActionOnSelectedFiles("download")}
+                  disabled={selectedFiles.length === 0}
+                  className="icon-button"
+                />
+                <CommandButton
+                  iconProps={{ iconName: "Copy" }}
+                  text="Duplicate"
+                  onClick={() => this.performActionOnSelectedFiles("duplicate")}
+                  disabled={selectedFiles.length === 0}
+                  className="icon-button"
+                />
+                <CommandButton
+                  iconProps={{ iconName: "Delete" }}
+                  text="Delete"
+                  onClick={() => this.performActionOnSelectedFiles("delete")}
+                  disabled={selectedFiles.length === 0}
+                  className="icon-button"
+                />
+              </Stack>
+            )}
           </Stack>
-        )}
+        </Stack>
       </>
     );
   };
@@ -438,7 +440,7 @@ export class Landing extends Component<LandingProps, LandingState> {
   };
 
   render() {
-    const { selectedFiles, editingFileId } = this.state;
+    const { editingFileId, isLoading } = this.state;
     const files = this.getFilteredAndSortedFiles();
     const isEmpty = files.length === 0;
     const entityIdExists = (this.props.context as any).page.entityId;
@@ -520,52 +522,59 @@ export class Landing extends Component<LandingProps, LandingState> {
                   {...getRootProps()}
                   className={`dropzone ${isEmpty ? "empty" : ""}`}
                 >
-                  <input {...getInputProps()} />
-                  {isEmpty ? (
-                    <p>
-                      Drag &apos;n&apos; drop files here or click to select
-                      files
-                    </p>
+                  {isLoading ? (
+                    <div className="spinner-box">
+                      <Spinner size={SpinnerSize.medium} />
+                    </div>
                   ) : (
-                    files.map((file) => (
-                      <div
-                        key={file.noteId}
-                        className={`file-box ${
-                          this.state.selectedFiles.includes(file.noteId || "")
-                            ? "selected"
-                            : ""
-                        }`}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          this.toggleFileSelection(file.noteId!);
-                        }}
-                      >
-                        <div className="file-image">
-                          <FileIcon
-                            extension={this.getFileExtension(file.filename)}
-                            {...defaultStyles[
-                              this.getFileExtension(file.filename)
-                            ]}
-                          />
-                        </div>
-                        <Tooltip
-                          title={file.filename}
-                          position="top"
-                          trigger="mouseenter"
-                          arrow={true}
-                          arrowSize="regular"
-                          theme="light"
-                        >
-                          <p className="file-name">
-                            {this.middleEllipsis(file.filename)}
-                          </p>
-                        </Tooltip>
-                        <p className="file-size">
-                          {this.formatFileSize(file.filesize)}
-                        </p>
-                      </div>
-                    ))
+                    <>
+                      <input {...getInputProps()} />
+                      {isEmpty ? (
+                        <p>Drag and drop files here or Browse for files</p>
+                      ) : (
+                        files.map((file) => (
+                          <div
+                            key={file.noteId}
+                            className={`file-box ${
+                              this.state.selectedFiles.includes(
+                                file.noteId || ""
+                              )
+                                ? "selected"
+                                : ""
+                            }`}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              this.toggleFileSelection(file.noteId!);
+                            }}
+                          >
+                            <div className="file-image">
+                              <FileIcon
+                                extension={this.getFileExtension(file.filename)}
+                                {...defaultStyles[
+                                  this.getFileExtension(file.filename)
+                                ]}
+                              />
+                            </div>
+                            <Tooltip
+                              title={file.filename}
+                              position="top"
+                              trigger="mouseenter"
+                              arrow={true}
+                              arrowSize="regular"
+                              theme="light"
+                            >
+                              <p className="file-name">
+                                {this.middleEllipsis(file.filename)}
+                              </p>
+                            </Tooltip>
+                            <p className="file-size">
+                              {this.formatFileSize(file.filesize)}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </>
                   )}
                 </div>
               </div>
