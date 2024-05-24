@@ -2,6 +2,8 @@
 
 Introducing the modern file upload component for Dynamics 365. It integrates perfectly with tables that have notes enabled and provides functionalities for uploading, downloading, and deleting files. The component uses Fluent UI and custom CSS to ensure a consistent look and feel with the new Dynamics 365 UI.
 
+![Modern Dropzone](https://github.com/GorgonUK/DropzonePCF/assets/59618079/49436e3f-5f6a-4020-8802-7e2686ba876f)
+
 ## Installation
 
 
