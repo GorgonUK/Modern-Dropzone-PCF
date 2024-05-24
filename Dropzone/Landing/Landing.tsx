@@ -10,7 +10,6 @@ import {
   duplicateRelatedNote,
 } from "../DataverseActions";
 import { FileData } from "../Interfaces";
-import "./Landing.css";
 import {
   DefaultButton,
   PrimaryButton,
@@ -29,6 +28,7 @@ import {
 import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
 import toast, { Toaster } from "react-hot-toast";
+import "../css/Dropzone.css";
 
 export interface LandingProps {
   context?: ComponentFramework.Context<IInputs>;
@@ -58,6 +58,14 @@ const searchRibbonStyles: IStackStyles = {
   root: {
     marginBottom: "0px",
   },
+};
+
+const isValidBase64 = (str: string) => {
+  try {
+    return btoa(atob(str)) === str;
+  } catch (err) {
+    return false;
+  }
 };
 
 const ribbonStackTokens: IStackTokens = { childrenGap: 10 };
@@ -161,6 +169,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         subject: item.subject,
         notetext: item.notetext,
       }));
+      console.log(filesData);
       this.setState({ files: filesData });
     } else {
       console.error("Failed to retrieve files:", response.message);
@@ -175,7 +184,19 @@ export class Landing extends Component<LandingProps, LandingState> {
 
     try {
       toast.loading("Preparing download...");
-      const byteCharacters = atob(fileData.documentbody);
+      let base64Data = fileData.documentbody;
+
+      const dataUrlPrefix = "base64,";
+      if (base64Data.includes(dataUrlPrefix)) {
+        const base64Index =
+          base64Data.indexOf(dataUrlPrefix) + dataUrlPrefix.length;
+        base64Data = base64Data.substring(base64Index);
+      }
+
+      if (!isValidBase64(base64Data)) {
+        throw new Error("Invalid base64 string");
+      }
+      const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
@@ -281,8 +302,16 @@ export class Landing extends Component<LandingProps, LandingState> {
   };
 
   formatFileSize(sizeInBytes: number) {
+    const sizeInKB = sizeInBytes / 1024;
     const sizeInMB = sizeInBytes / 1048576;
-    return `${sizeInMB.toFixed(2)} MB`;
+
+    if (sizeInMB >= 1) {
+      return `${sizeInMB.toFixed(2)} MB`;
+    } else if (sizeInKB >= 1) {
+      return `${sizeInKB.toFixed(2)} KB`;
+    } else {
+      return `${sizeInBytes} Bytes`;
+    }
   }
 
   middleEllipsis(filename: string, maxLength: number = 19): string {

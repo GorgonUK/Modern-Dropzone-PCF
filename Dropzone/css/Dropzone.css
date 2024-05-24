@@ -31,7 +31,7 @@
 .file-box {
   width: 120px;
   height: auto;
-  margin: 10px;
+  margin: 5px;
   padding: 10px;
   display: flex;
   flex-direction: column;

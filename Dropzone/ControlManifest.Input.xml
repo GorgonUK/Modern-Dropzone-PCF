@@ -28,8 +28,8 @@
       <code path="index.ts" order="1" />
       <platform-library name="React" version="16.8.6" />
       <platform-library name="Fluent" version="8.29.0" />
-      <!-- UNCOMMENT TO ADD MORE RESOURCES
       <css path="css/Dropzone.css" order="1" />
+      <!-- UNCOMMENT TO ADD MORE RESOURCES
       <resx path="strings/Dropzone.1033.resx" version="1.0.0" />
       -->
     </resources>
