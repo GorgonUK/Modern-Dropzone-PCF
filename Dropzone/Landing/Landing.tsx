@@ -8,8 +8,11 @@ import {
   updateRelatedNote,
   deleteRelatedNote,
   duplicateRelatedNote,
+  getSharePointLocations,
+  getSharePointData,
+  getSharePointFolderData,
 } from "../DataverseActions";
-import { FileData } from "../Interfaces";
+import { FileData, SharePointDocument } from "../Interfaces";
 import {
   DefaultButton,
   PrimaryButton,
@@ -24,10 +27,18 @@ import {
   SearchBox,
   Spinner,
   SpinnerSize,
+  Toggle,
+  TooltipHost,
+  IButtonStyles,
+  Dropdown,
+  DropdownMenuItemType,
+  IDropdownStyles,
+  IDropdownOption,
 } from "@fluentui/react";
 import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
 import toast, { Toaster } from "react-hot-toast";
+import FolderIcon from "./FolderIcon";
 import "../css/Dropzone.css";
 
 export interface LandingProps {
@@ -41,10 +52,57 @@ interface LandingState {
   searchText: string;
   sortAsc: boolean;
   isLoading: boolean;
+  sharePointDocLoc: boolean;
+  showTooltip: boolean;
+  documentLocations: { name: string; sharepointdocumentlocationid: string }[];
+  selectedDocumentLocation: string | null;
+  sharePointData: SharePointDocument[];
+  currentFolderPath: string;
+  folderStack: string[];
 }
 
 type FileAction = "edit" | "download" | "duplicate" | "delete";
 
+const SharePointDocLocTooltip = (
+  <span>
+    Upload files directly to SharePoint. To learn more go to{" "}
+    <a
+      href="https://learn.microsoft.com/en-us/power-platform/admin/create-edit-document-location-records"
+      target="_blank"
+    >
+      MS Docs
+    </a>
+    .
+  </span>
+);
+
+const tooltipId = "sharePointDocLocTooltip";
+const buttonStyles: IButtonStyles = {
+  root: {
+    border: "none",
+    minWidth: "auto",
+    margin: 0,
+    padding: 0,
+  },
+  rootHovered: {
+    border: "none",
+  },
+  rootPressed: {
+    border: "none",
+  },
+  rootExpanded: {
+    border: "none",
+  },
+  rootChecked: {
+    border: "none",
+  },
+  rootDisabled: {
+    border: "none",
+  },
+};
+const dropdownStyles: Partial<IDropdownStyles> = {
+  dropdown: { width: 300 },
+};
 const ribbonStyles: IStackStyles = {
   root: {
     alignItems: "center",
@@ -82,9 +140,92 @@ export class Landing extends Component<LandingProps, LandingState> {
       searchText: "",
       sortAsc: true,
       isLoading: true,
+      sharePointDocLoc: false,
+      showTooltip: false,
+      documentLocations: [],
+      selectedDocumentLocation: null,
+      sharePointData: [],
+      currentFolderPath: "",
+      folderStack: [],
     };
+    this.toggleSharePointDocLoc = this.toggleSharePointDocLoc.bind(this);
+    this.toggleTooltip = this.toggleTooltip.bind(this);
+    this.getSharePointLocations = this.getSharePointLocations.bind(this);
+    this.getSharePointData = this.getSharePointData.bind(this);
+    this.handleFolderClick = this.handleFolderClick.bind(this);
+    this.handleFolderClick = this.handleFolderClick.bind(this);
+    this.handleBackClick = this.handleBackClick.bind(this);
   }
+  private async handleFolderClick(folderPath: string): Promise<void> {
+    this.setState(
+      (prevState) => ({
+        folderStack: [...prevState.folderStack, prevState.currentFolderPath],
+      }),
+      async () => {
+        try {
+          const data = await getSharePointFolderData(
+            this.props.context!,
+            folderPath
+          );
+          this.setState({
+            sharePointData: data,
+            currentFolderPath: folderPath,
+          });
+        } catch (error) {
+          console.error("Error fetching folder data:", error);
+        }
+      }
+    );
+  }
+  private handleBackClick = async () => {
+    this.setState(
+      (prevState) => {
+        const folderStack = [...prevState.folderStack];
+        const previousFolderPath = folderStack.pop();
+        return { folderStack, currentFolderPath: previousFolderPath || "" };
+      },
+      async () => {
+        const { currentFolderPath } = this.state;
+        const data = await getSharePointFolderData(
+          this.props.context!,
+          currentFolderPath
+        );
+        this.setState({ sharePointData: data });
+      }
+    );
+  };
 
+  private async getSharePointLocations(): Promise<void> {
+    const { context } = this.props;
+    try {
+      const response = await getSharePointLocations(context!);
+      const firstLocation =
+        response.length > 0 ? response[0].sharepointdocumentlocationid : null;
+      this.setState({
+        documentLocations: response,
+        selectedDocumentLocation: firstLocation,
+      });
+    } catch (error) {
+      console.error("Error fetching SharePoint document locations:", error);
+    }
+  }
+  private async getSharePointData(): Promise<void> {
+    this.setState(
+      (prevState) => {
+        const folderStack = [...prevState.folderStack];
+        const previousFolderPath = folderStack.pop();
+        return { folderStack, currentFolderPath: previousFolderPath || "" };
+      },
+      async () => {
+        const { currentFolderPath } = this.state;
+        const data = await getSharePointFolderData(
+          this.props.context!,
+          currentFolderPath
+        );
+        this.setState({ sharePointData: data });
+      }
+    );
+  }
   componentDidMount() {
     this.loadExistingFiles().then(() => {
       this.setState({ isLoading: false });
@@ -101,7 +242,7 @@ export class Landing extends Component<LandingProps, LandingState> {
   handleDrop = (acceptedFiles: File[]) => {
     acceptedFiles.forEach((file) => {
       const reader = new FileReader();
-
+// add condition for SharePoint file upload
       reader.onload = () => {
         const binaryStr = reader.result as string;
         const createNotePromise = createRelatedNote(
@@ -157,23 +298,30 @@ export class Landing extends Component<LandingProps, LandingState> {
       console.error("Component Framework context is not available.");
       return;
     }
-    const response = await getRelatedNotes(this.props.context);
-    if (response.success) {
-      const filesData: FileData[] = response.data.map((item: any) => ({
-        filename: item.filename,
-        filesize: item.filesize,
-        documentbody: item.documentbody,
-        mimetype: item.mimetype,
-        noteId: item.annotationid,
-        createdon: new Date(item.createdon),
-        subject: item.subject,
-        notetext: item.notetext,
-      }));
-      console.log(filesData);
-      this.setState({ files: filesData });
+    this.setState({ isLoading: true });
+    const { sharePointDocLoc } = this.state;
+    if (!sharePointDocLoc) {
+      const response = await getRelatedNotes(this.props.context);
+      if (response.success) {
+        const filesData: FileData[] = response.data.map((item: any) => ({
+          filename: item.filename,
+          filesize: item.filesize,
+          documentbody: item.documentbody,
+          mimetype: item.mimetype,
+          noteId: item.annotationid,
+          createdon: new Date(item.createdon),
+          subject: item.subject,
+          notetext: item.notetext,
+        }));
+        this.setState({ files: filesData });
+      } else {
+        console.error("Failed to retrieve files:", response.message);
+      }
     } else {
-      console.error("Failed to retrieve files:", response.message);
+      this.getSharePointLocations();
+      this.getSharePointData();
     }
+    this.setState({ isLoading: false });
   };
 
   downloadFile = (fileData: FileData) => {
@@ -271,30 +419,23 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.setState({ editingFileId: noteId });
   };
 
-  saveChanges = async (
-    noteId: string,
-    subject: string,
-    notetext: string
-  ): Promise<void> => {
+  saveChanges = async (noteId: string, filename: string): Promise<void> => {
     toast
-      .promise(
-        updateRelatedNote(this.props.context!, noteId, subject, notetext),
-        {
-          loading: "Saving changes...",
-          success: "Changes saved successfully!",
-          error: "Failed to save changes",
-        }
-      )
+      .promise(updateRelatedNote(this.props.context!, noteId, filename), {
+        loading: "Saving changes...",
+        success: "Changes saved successfully!",
+        error: "Failed to save changes",
+      })
       .then((response) => {
         if (response.success) {
           this.setState((prevState) => ({
             files: prevState.files.map((file) =>
               file.noteId === noteId
-                ? { ...file, subject, notetext, isEditing: false }
+                ? { ...file, filename, isEditing: false }
                 : file
             ),
           }));
-          this.toggleEditModal(noteId);
+          this.toggleEditModal();
         } else {
           console.error("Failed to update note:", response.message);
         }
@@ -346,6 +487,8 @@ export class Landing extends Component<LandingProps, LandingState> {
         this.downloadFile(file);
       } else if (action === "delete") {
         this.removeFile(noteId);
+      } else if (action === "edit") {
+        this.toggleEditModal(noteId);
       }
     });
 
@@ -358,25 +501,36 @@ export class Landing extends Component<LandingProps, LandingState> {
   toggleSortOrder = () => {
     this.setState((prevState) => ({ sortAsc: !prevState.sortAsc }));
   };
+  toggleTooltip() {
+    this.setState((prevState) => ({ showTooltip: !prevState.showTooltip }));
+  }
 
-  getFilteredAndSortedFiles = () => {
-    const { files, searchText, sortAsc } = this.state;
-    return files
-      .filter((file) =>
-        file.filename.toLowerCase().includes(searchText.toLowerCase())
-      )
-      .sort((a, b) => {
-        if (sortAsc) {
-          return a.filename.localeCompare(b.filename);
-        } else {
-          return b.filename.localeCompare(a.filename);
-        }
-      });
-  };
+  toggleSharePointDocLoc(_: React.MouseEvent<HTMLElement>, checked?: boolean) {
+    this.setState({ sharePointDocLoc: !!checked }, () => {
+      this.loadExistingFiles();
+    });
+  }
+  getFilteredAndSortedFiles() {
+    const { files, searchText } = this.state;
+    return files.filter(file => file.filename.toLowerCase().includes(searchText.toLowerCase()));
+  }
+  
+  getFilteredAndSortedSPFiles() {
+    const { sharePointData, searchText } = this.state;
+    return sharePointData.filter(spData => spData.fullname.toLowerCase().includes(searchText.toLowerCase()));
+  }
+
+  private handleDropdownChange(
+    event: React.FormEvent<HTMLDivElement>,
+    option?: IDropdownOption
+  ): void {
+    if (option) {
+      this.setState({ selectedDocumentLocation: option.key as string });
+    }
+  }
 
   renderRibbon = () => {
     const { selectedFiles } = this.state;
-
     return (
       <>
         <Stack
@@ -389,7 +543,7 @@ export class Landing extends Component<LandingProps, LandingState> {
               <SearchBox
                 placeholder="Search files..."
                 onSearch={(newValue) => this.handleSearch(null, newValue)}
-                onChange={this.handleSearch}
+                onChange={(_, newValue) => this.handleSearch(null, newValue)}
                 styles={{
                   root: {
                     width: 200,
@@ -430,6 +584,15 @@ export class Landing extends Component<LandingProps, LandingState> {
             </Stack>
             {selectedFiles.length > 0 && (
               <Stack horizontal tokens={ribbonStackTokens}>
+                {selectedFiles.length < 2 && (
+                  <CommandButton
+                    iconProps={{ iconName: "Edit" }}
+                    text="Rename"
+                    onClick={() => this.performActionOnSelectedFiles("edit")}
+                    disabled={selectedFiles.length === 0}
+                    className="icon-button"
+                  />
+                )}
                 <CommandButton
                   iconProps={{ iconName: "Download" }}
                   text="Download"
@@ -459,7 +622,12 @@ export class Landing extends Component<LandingProps, LandingState> {
     );
   };
 
-  toggleFileSelection = (noteId: string) => {
+  toggleFileSelection = (noteId: string, file?: SharePointDocument) => {
+    if (file && file.filetype === "folder") {
+      this.handleFolderClick(file.relativelocation);
+      return;
+    }
+
     const isSelected = this.state.selectedFiles.includes(noteId);
     this.setState((prevState) => ({
       selectedFiles: isSelected
@@ -467,13 +635,144 @@ export class Landing extends Component<LandingProps, LandingState> {
         : [...prevState.selectedFiles, noteId],
     }));
   };
+  renderFileList() {
+    const { sharePointDocLoc, selectedFiles, currentFolderPath } = this.state;
+    const files = this.getFilteredAndSortedFiles();
+    const sharePointData = this.getFilteredAndSortedSPFiles();
+    if (sharePointDocLoc) {
+      return (
+        <>
+          {currentFolderPath && (
+            <button
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.handleBackClick();
+              }}
+              className="back-button"
+            >
+              Back
+            </button>
+          )}
+          {sharePointDocLoc
+            ? sharePointData.map((file) => (
+                <div
+                  key={file.sharepointdocumentid}
+                  className={`file-box ${
+                    selectedFiles.includes(file.sharepointdocumentid)
+                      ? "selected"
+                      : ""
+                  }`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.toggleFileSelection(file.sharepointdocumentid, file);
+                  }}
+                >
+                  <div className="file-image">
+                    {file.filetype === "folder" ? (
+                      <FolderIcon />
+                    ) : (
+                      <FileIcon
+                        extension={this.getFileExtension(file.fullname)}
+                        {...defaultStyles[this.getFileExtension(file.fullname)]}
+                      />
+                    )}
+                  </div>
+                  <Tooltip
+                    title={file.fullname}
+                    position="top"
+                    trigger="mouseenter"
+                    arrow={true}
+                    arrowSize="regular"
+                    theme="light"
+                  >
+                    <p className="file-name">
+                      {this.middleEllipsis(file.fullname)}
+                    </p>
+                  </Tooltip>
+
+                  {file.filetype !== "folder" ? (
+                    <p className="file-size">
+                      {this.formatFileSize(file.filesize)}
+                    </p>
+                  ) : (
+                    <p className="file-size"> </p>
+                  )}
+                </div>
+              ))
+            : null}
+        </>
+      );
+    } else {
+      return files.map((file) => (
+        <div
+          key={file.noteId}
+          className={`file-box ${
+            selectedFiles.includes(file.noteId || "") ? "selected" : ""
+          }`}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.toggleFileSelection(file.noteId!);
+          }}
+        >
+          <div className="file-image">
+            <FileIcon
+              extension={this.getFileExtension(file.filename)}
+              {...defaultStyles[this.getFileExtension(file.filename)]}
+            />
+          </div>
+          <Tooltip
+            title={file.filename}
+            position="top"
+            trigger="mouseenter"
+            arrow={true}
+            arrowSize="regular"
+            theme="light"
+          >
+            <p className="file-name">{this.middleEllipsis(file.filename)}</p>
+          </Tooltip>
+          <p className="file-size">{this.formatFileSize(file.filesize)}</p>
+        </div>
+      ));
+    }
+  }
 
   render() {
-    const { editingFileId, isLoading } = this.state;
+    const {
+      editingFileId,
+      isLoading,
+      sharePointDocLoc,
+      showTooltip,
+      selectedDocumentLocation,
+      documentLocations,
+      currentFolderPath,
+    } = this.state;
+    const dropdownOptions: IDropdownOption[] = documentLocations.map(
+      (location) => ({
+        key: location.sharepointdocumentlocationid,
+        text: location.name,
+      })
+    );
     const files = this.getFilteredAndSortedFiles();
     const isEmpty = files.length === 0;
     const entityIdExists = (this.props.context as any).page.entityId;
     const editingFile = files.find((file) => file.noteId === editingFileId);
+    const docLoctooltip = (
+      <TooltipHost
+        content={showTooltip ? SharePointDocLocTooltip : undefined}
+        id={tooltipId}
+      >
+        <DefaultButton
+          aria-label="more info"
+          aria-describedby={showTooltip ? tooltipId : undefined}
+          onClick={this.toggleTooltip}
+          styles={buttonStyles}
+          iconProps={{ iconName: "Info" }}
+        />
+      </TooltipHost>
+    );
 
     if (!entityIdExists) {
       return (
@@ -493,31 +792,16 @@ export class Landing extends Component<LandingProps, LandingState> {
             onDismiss={() => this.toggleEditModal()}
             dialogContentProps={{
               type: DialogType.normal,
-              title: "Edit Note",
-              subText: "Update the title and description of your note.",
+              title: "Edit file name",
             }}
           >
             <TextField
-              label="Title"
-              value={editingFile.subject || ""}
+              label="File name"
+              value={editingFile.filename || ""}
               onChange={(e, newValue) => {
                 const updatedFiles = files.map((file) =>
                   file.noteId === editingFileId
-                    ? { ...file, subject: newValue }
-                    : file
-                );
-                this.setState({ files: updatedFiles });
-              }}
-            />
-            <TextField
-              label="Description"
-              multiline
-              rows={3}
-              value={editingFile.notetext || ""}
-              onChange={(e, newValue) => {
-                const updatedFiles = files.map((file) =>
-                  file.noteId === editingFileId
-                    ? { ...file, notetext: newValue }
+                    ? { ...file, filename: newValue || "" }
                     : file
                 );
                 this.setState({ files: updatedFiles });
@@ -525,13 +809,9 @@ export class Landing extends Component<LandingProps, LandingState> {
             />
             <DialogFooter>
               <PrimaryButton
-                onClick={() =>
-                  this.saveChanges(
-                    editingFile.noteId!,
-                    editingFile.subject!,
-                    editingFile.notetext!
-                  )
-                }
+                onClick={() => {
+                  this.saveChanges(editingFile.noteId!, editingFile.filename!);
+                }}
                 text="Save"
               />
               <DefaultButton
@@ -561,47 +841,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                       {isEmpty ? (
                         <p>Drag and drop files here or Browse for files</p>
                       ) : (
-                        files.map((file) => (
-                          <div
-                            key={file.noteId}
-                            className={`file-box ${
-                              this.state.selectedFiles.includes(
-                                file.noteId || ""
-                              )
-                                ? "selected"
-                                : ""
-                            }`}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              this.toggleFileSelection(file.noteId!);
-                            }}
-                          >
-                            <div className="file-image">
-                              <FileIcon
-                                extension={this.getFileExtension(file.filename)}
-                                {...defaultStyles[
-                                  this.getFileExtension(file.filename)
-                                ]}
-                              />
-                            </div>
-                            <Tooltip
-                              title={file.filename}
-                              position="top"
-                              trigger="mouseenter"
-                              arrow={true}
-                              arrowSize="regular"
-                              theme="light"
-                            >
-                              <p className="file-name">
-                                {this.middleEllipsis(file.filename)}
-                              </p>
-                            </Tooltip>
-                            <p className="file-size">
-                              {this.formatFileSize(file.filesize)}
-                            </p>
-                          </div>
-                        ))
+                        this.renderFileList()
                       )}
                     </>
                   )}
@@ -609,6 +849,23 @@ export class Landing extends Component<LandingProps, LandingState> {
               </div>
             )}
           </Dropzone>
+          <Toggle
+            label={<div>SharePoint Documents {docLoctooltip}</div>}
+            inlineLabel
+            onText="On"
+            offText="Off"
+            checked={sharePointDocLoc}
+            onChange={this.toggleSharePointDocLoc}
+          />
+          {sharePointDocLoc && (
+            <Dropdown
+              options={dropdownOptions}
+              disabled={false}
+              styles={dropdownStyles}
+              onChange={this.handleDropdownChange}
+              defaultSelectedKey={selectedDocumentLocation}
+            />
+          )}
         </div>
       </>
     );

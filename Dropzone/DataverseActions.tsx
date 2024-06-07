@@ -38,7 +38,6 @@ export async function getRelatedNotes(
 
   try {
     const result = await context.webAPI.retrieveMultipleRecords('annotation', `?$filter=${filter}&$orderby=createdon desc`);
-    console.log(result)
     const filteredEntities = result.entities.filter((entity: any) => entity.objecttypecode === entityName);
     return { success: true, data: filteredEntities };
   } catch (error) {
@@ -63,12 +62,10 @@ export async function deleteRelatedNote(
 export async function updateRelatedNote(
   context: ComponentFramework.Context<IInputs>,
   noteId: string,
-  subject: string,
-  notetext: string
+  filename: string,
 ): Promise<{ success: boolean; message: string }> {
   const data = {
-    subject: subject,
-    notetext: notetext
+    filename: filename
   };
 
   try {
@@ -111,6 +108,288 @@ export async function duplicateRelatedNote(
   } catch (error) {
     console.error("Error duplicating note:", error);
     return { success: false, message: `Error duplicating note: ${(error as any).message}` };
+  }
+}
+
+export async function getSharePointLocations(context: ComponentFramework.Context<IInputs>): Promise<{ name: string, sharepointdocumentlocationid: string }[]> {
+  const entityId = (context as any).page.entityId;
+  const dynamicsUrl = (context as any).page.getClientUrl()
+  const fetchXml = `
+  <fetch mapping="logical" version="1.0">
+  <entity name="sharepointdocumentlocation">
+    <attribute name="name" />
+    <attribute name="sharepointdocumentlocationid" />
+    <filter type="and">
+      <condition attribute="regardingobjectid" operator="eq" value="${entityId}" />
+      <condition attribute="statecode" operator="eq" value="0" />
+      <condition attribute="statuscode" operator="eq" value="1" />
+      <condition attribute="sitecollectionid" operator="not-null" />
+      <condition attribute="absoluteurl" operator="null" />
+    </filter>
+    <filter type="or">
+      <filter type="and">
+        <condition attribute="servicetype" operator="eq" value="0" />
+      </filter>
+    </filter>
+  </entity>
+</fetch>
+  `;
+  const encodedFetchXml = encodeURIComponent(fetchXml);
+  const url = `${dynamicsUrl}/api/data/v9.0/sharepointdocumentlocations?fetchXml=${encodedFetchXml}`;
+
+  
+  const headers = {
+    "Accept": "application/json",
+    "OData-MaxVersion": "4.0",
+    "OData-Version": "4.0",
+    "Prefer": "odata.include-annotations=OData.Community.Display.V1.FormattedValue"
+  };
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: headers
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error fetching SharePoint document locations: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  return data.value.map((item: any) => ({
+    name: item.name,
+    sharepointdocumentlocationid: item.sharepointdocumentlocationid
+  }));
+}
+
+export async function getSharePointData(context: ComponentFramework.Context<IInputs>): Promise<any[]> {
+  const entityName = (context as any).page.entityTypeName;
+  const entityId = (context as any).page.entityId;
+  const dynamicsUrl = (context as any).page.getClientUrl()
+  const fetchXml = `
+    <fetch distinct="false" mapping="logical" returntotalrecordcount="true" no-lock="false">
+      <entity name="sharepointdocument">
+        <attribute name="documentid"/>
+        <attribute name="fullname"/>
+        <attribute name="relativelocation"/>
+        <attribute name="sharepointcreatedon"/>
+        <attribute name="ischeckedout"/>
+        <attribute name="filetype"/>
+        <attribute name="modified"/>
+        <attribute name="sharepointmodifiedby"/>
+        <attribute name="servicetype"/>
+        <attribute name="absoluteurl"/>
+        <attribute name="title"/>
+        <attribute name="author"/>
+        <attribute name="sharepointdocumentid"/>
+        <attribute name="readurl"/>
+        <attribute name="editurl"/>
+        <attribute name="locationid"/>
+        <attribute name="iconclassname"/>
+        <attribute name="locationname"/>
+        <attribute name="filesize"/>
+        <order attribute="relativelocation" descending="false"/>
+        <filter>
+          <condition attribute="isrecursivefetch" operator="eq" value="0"/>
+        </filter>
+        <link-entity name="${entityName}" from="${entityName}id" to="regardingobjectid" alias="bb">
+          <filter type="and">
+            <condition attribute="${entityName}id" operator="eq" uitype="${entityName}" value="${entityId}"/>
+          </filter>
+        </link-entity>
+      </entity>
+    </fetch>
+  `;
+
+  const encodedFetchXml = encodeURIComponent(fetchXml);
+  const url = `${dynamicsUrl}/api/data/v9.0/sharepointdocuments?fetchXml=${encodedFetchXml}`;
+
+  const headers = {
+    "Accept": "application/json",
+    "OData-MaxVersion": "4.0",
+    "OData-Version": "4.0",
+    "Prefer": "odata.include-annotations=OData.Community.Display.V1.FormattedValue"
+  };
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: headers
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error fetching SharePoint data: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  return data.value.map((item: any) => ({
+    readurl: item.readurl,
+    modified: item.modified,
+    modifiedFormatted: item["modified@OData.Community.Display.V1.FormattedValue"],
+    sharepointmodifiedby: item.sharepointmodifiedby,
+    editurl: item.editurl,
+    sharepointdocumentid: item.sharepointdocumentid,
+    documentid: item.documentid,
+    documentidFormatted: item["documentid@OData.Community.Display.V1.FormattedValue"],
+    ischeckedout: item.ischeckedout,
+    ischeckedoutFormatted: item["ischeckedout@OData.Community.Display.V1.FormattedValue"],
+    sharepointcreatedon: item.sharepointcreatedon,
+    sharepointcreatedonFormatted: item["sharepointcreatedon@OData.Community.Display.V1.FormattedValue"],
+    locationname: item.locationname,
+    iconclassname: item.iconclassname,
+    absoluteurl: item.absoluteurl,
+    fullname: item.fullname,
+    locationid: item.locationid,
+    title: item.title,
+    filetype: item.filetype,
+    relativelocation: item.relativelocation,
+    servicetypeFormatted: item["servicetype@OData.Community.Display.V1.FormattedValue"],
+    servicetype: item.servicetype,
+    author: item.author,
+    filesize: item.filesize
+  }));
+}
+export async function getSharePointFolderData(context: ComponentFramework.Context<IInputs>,folderPath?: string): Promise<any[]> {
+  const entityName = (context as any).page.entityTypeName;
+  const entityId = (context as any).page.entityId;
+  const dynamicsUrl = (context as any).page.getClientUrl()
+  let folderFilter = '';
+  if (folderPath) {
+    folderFilter = `
+      <filter type="and">
+        <condition attribute="relativelocation" operator="eq" value="${folderPath}"/>
+      </filter>`;
+  }
+  const fetchXml = `
+    <fetch distinct="false" mapping="logical" returntotalrecordcount="true" no-lock="false">
+      <entity name="sharepointdocument">
+        <attribute name="documentid"/>
+        <attribute name="fullname"/>
+        <attribute name="relativelocation"/>
+        <attribute name="sharepointcreatedon"/>
+        <attribute name="ischeckedout"/>
+        <attribute name="filetype"/>
+        <attribute name="modified"/>
+        <attribute name="sharepointmodifiedby"/>
+        <attribute name="servicetype"/>
+        <attribute name="absoluteurl"/>
+        <attribute name="title"/>
+        <attribute name="author"/>
+        <attribute name="sharepointdocumentid"/>
+        <attribute name="readurl"/>
+        <attribute name="editurl"/>
+        <attribute name="locationid"/>
+        <attribute name="iconclassname"/>
+        <attribute name="locationname"/>
+        <attribute name="filesize"/>
+        <filter>
+          <condition attribute="isrecursivefetch" operator="eq" value="0"/>
+        </filter>
+        
+${folderFilter}
+
+        <order attribute="relativelocation" descending="false"/>
+        <link-entity name="${entityName}" from="${entityName}id" to="regardingobjectid" alias="bb">
+          <filter type="and">
+            <condition attribute="${entityName}id" operator="eq" uitype="${entityName}" value="${entityId}"/>
+          </filter>
+        </link-entity>
+      </entity>
+    </fetch>
+  `;
+
+  const encodedFetchXml = encodeURIComponent(fetchXml);
+  const url = `${dynamicsUrl}/api/data/v9.0/sharepointdocuments?fetchXml=${encodedFetchXml}`;
+
+  const headers = {
+    "Accept": "application/json",
+    "OData-MaxVersion": "4.0",
+    "OData-Version": "4.0",
+    "Prefer": "odata.include-annotations=OData.Community.Display.V1.FormattedValue"
+  };
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: headers
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error fetching SharePoint data: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  return data.value.map((item: any) => ({
+    readurl: item.readurl,
+    modified: item.modified,
+    modifiedFormatted: item["modified@OData.Community.Display.V1.FormattedValue"],
+    sharepointmodifiedby: item.sharepointmodifiedby,
+    editurl: item.editurl,
+    sharepointdocumentid: item.sharepointdocumentid,
+    documentid: item.documentid,
+    documentidFormatted: item["documentid@OData.Community.Display.V1.FormattedValue"],
+    ischeckedout: item.ischeckedout,
+    ischeckedoutFormatted: item["ischeckedout@OData.Community.Display.V1.FormattedValue"],
+    sharepointcreatedon: item.sharepointcreatedon,
+    sharepointcreatedonFormatted: item["sharepointcreatedon@OData.Community.Display.V1.FormattedValue"],
+    locationname: item.locationname,
+    iconclassname: item.iconclassname,
+    absoluteurl: item.absoluteurl,
+    fullname: item.fullname,
+    locationid: item.locationid,
+    title: item.title,
+    filetype: item.filetype,
+    relativelocation: item.relativelocation,
+    servicetypeFormatted: item["servicetype@OData.Community.Display.V1.FormattedValue"],
+    servicetype: item.servicetype,
+    author: item.author,
+    filesize: item.filesize
+  }));
+}
+
+export async function uploadSharePointDocument(
+  context: ComponentFramework.Context<IInputs>,
+  fileName: string,
+  base64: string,
+  folderPath: string
+): Promise<any[]> {
+  const dynamicsUrl = (context as any).page.getClientUrl()
+  const url = `${dynamicsUrl}/api/data/v9.0/UploadDocument`;
+  const entityName = (context as any).page.entityTypeName;
+  const entityId = (context as any).page.entityId;
+  const body = JSON.stringify({
+      "Content": `${base64}`,
+      "Entity": {
+          "@odata.type": "Microsoft.Dynamics.CRM.sharepointdocument",
+          "locationid": "",
+          "title": `${fileName}`
+      },
+      "OverwriteExisting": true,
+      "ParentEntityReference": {
+          "@odata.type": `Microsoft.Dynamics.CRM.${entityName}`,
+          [`${entityName}id`]: `${entityId}`
+      },
+      "FolderPath": `${folderPath}`
+  });
+
+  const fetchOptions = {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json'
+      },
+      body: body
+  };
+
+  try {
+      const response = await fetch(url, fetchOptions);
+      if (!response.ok) {
+          throw new Error('Failed to upload document: ' + response.statusText);
+      }
+      const responseData = await response.json();
+      return responseData;
+  } catch (error) {
+      console.error('Error uploading document:', error);
+      throw error;
   }
 }
 
