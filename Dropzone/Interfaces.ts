@@ -9,4 +9,31 @@ export interface FileData {
   createdon: Date;
   isLoading?: boolean;
   isEditing?: boolean;
+  
+}
+export interface SharePointDocument {
+  readurl: string;
+  modified: string;
+  modifiedFormatted: string;
+  sharepointmodifiedby: string;
+  editurl: string;
+  sharepointdocumentid: string;
+  documentid: number;
+  documentidFormatted: string;
+  ischeckedout: boolean;
+  ischeckedoutFormatted: string;
+  sharepointcreatedon: string;
+  sharepointcreatedonFormatted: string;
+  locationname: string;
+  iconclassname: string;
+  absoluteurl: string;
+  fullname: string;
+  locationid: string;
+  title: string;
+  filetype: string;
+  relativelocation: string;
+  servicetypeFormatted: string;
+  servicetype: number;
+  author: string;
+  filesize: number;
 }
