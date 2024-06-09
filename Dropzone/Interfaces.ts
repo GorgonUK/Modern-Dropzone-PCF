@@ -9,6 +9,7 @@ export interface FileData {
   createdon: Date;
   isLoading?: boolean;
   isEditing?: boolean;
+  
 }
 export interface SharePointDocument {
   readurl: string;
