@@ -4,8 +4,6 @@ Introducing the modern file upload component for Dynamics 365, the Dropzone PCF.
 
 ![2024-06-09_18-42-30](https://github.com/GorgonUK/Modern-Dropzone-PCF/assets/59618079/71a0ecc7-69bb-48fb-8254-2035641647bd)
 
-![Modern Dropzone](https://github.com/GorgonUK/DropzonePCF/assets/59618079/49436e3f-5f6a-4020-8802-7e2686ba876f)
-
 ## Installation
 
 The component supports SharePoint Document Locations and comes pre-configured to work with your existing Document Locations. For setup instructions, please refer to [Microsoft Learn's guide on enabling SharePoint document management for specific entities](https://learn.microsoft.com/en-us/power-platform/admin/enable-sharepoint-document-management-specific-entities).
@@ -44,3 +42,4 @@ The component supports SharePoint Document Locations and comes pre-configured to
 
    ![Dropzone Component on Form](https://github.com/GorgonUK/Modern-Dropzone-PCF/assets/59618079/e9461aa3-fb3f-4170-a71c-7a96ef1ca421)
 
+For any issues or suggestions, use the "Issues" tab at the top of the page.
