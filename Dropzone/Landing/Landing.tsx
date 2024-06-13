@@ -38,6 +38,10 @@ import {
   IDropdownOption,
   IconButton,
   Icon,
+  ITooltipHostStyles,
+  ContextualMenu,
+  IContextualMenuProps,
+  ContextualMenuItemType,
 } from "@fluentui/react";
 import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
@@ -67,6 +71,9 @@ interface LandingState {
   showModal: boolean;
   newFolderName: string;
   selectedDocumentLocationName: string;
+  isCollapsed: boolean;
+  menuVisible: boolean;
+  target: HTMLElement | null;
 }
 
 type FileAction = "edit" | "download" | "duplicate" | "delete";
@@ -86,27 +93,13 @@ const SharePointDocLocTooltip = (
 );
 
 const tooltipId = "sharePointDocLocTooltip";
-const buttonStyles: IButtonStyles = {
+const buttonStyles: Partial<ITooltipHostStyles> = {
   root: {
     border: "none",
     minWidth: "auto",
     margin: 0,
     padding: 0,
-  },
-  rootHovered: {
-    border: "none",
-  },
-  rootPressed: {
-    border: "none",
-  },
-  rootExpanded: {
-    border: "none",
-  },
-  rootChecked: {
-    border: "none",
-  },
-  rootDisabled: {
-    border: "none",
+    display: "inline-block",
   },
 };
 const dropdownStyles: Partial<IDropdownStyles> = {
@@ -160,6 +153,9 @@ export class Landing extends Component<LandingProps, LandingState> {
       showModal: false,
       newFolderName: "",
       selectedDocumentLocationName: "",
+      isCollapsed: window.innerWidth < 767,
+      menuVisible: false,
+      target: null,
     };
     this.toggleSharePointDocLoc = this.toggleSharePointDocLoc.bind(this);
     this.toggleTooltip = this.toggleTooltip.bind(this);
@@ -169,6 +165,9 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.handleFolderClick = this.handleFolderClick.bind(this);
     this.handleBackClick = this.handleBackClick.bind(this);
     this.handleDropdownChange = this.handleDropdownChange.bind(this);
+    this.handleResize = this.handleResize.bind(this);
+    this.toggleMenu = this.toggleMenu.bind(this);
+    this.closeMenu = this.closeMenu.bind(this);
   }
   private async handleFolderClick(folderPath: string): Promise<void> {
     this.setState(
@@ -248,7 +247,6 @@ export class Landing extends Component<LandingProps, LandingState> {
       },
       async () => {
         const { currentFolderPath } = this.state;
-        console.log("Current Folder Path:", currentFolderPath);
         const data = await getSharePointFolderData(
           this.props.context!,
           currentFolderPath,
@@ -264,6 +262,26 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.loadExistingFiles().then(() => {
       this.setState({ isLoading: false });
     });
+    window.addEventListener("resize", this.handleResize);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener("resize", this.handleResize);
+  }
+
+  handleResize() {
+    this.setState({ isCollapsed: window.innerWidth < 767 });
+  }
+
+  toggleMenu(event: React.MouseEvent<HTMLElement>) {
+    this.setState({
+      menuVisible: !this.state.menuVisible,
+      target: event.currentTarget,
+    });
+  }
+
+  closeMenu() {
+    this.setState({ menuVisible: false });
   }
 
   getFileExtension(filename: string): DefaultExtensionType {
@@ -274,9 +292,10 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   handleDrop = (acceptedFiles: File[]) => {
-    const reader = new FileReader();
+    
     if (!this.state.sharePointDocLoc) {
       acceptedFiles.forEach((file) => {
+        const reader = new FileReader();
         reader.onload = () => {
           const binaryStr = reader.result as string;
           const createNotePromise = createRelatedNote(
@@ -327,6 +346,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       });
     } else {
       acceptedFiles.forEach((file) => {
+        const reader = new FileReader();
         reader.onload = () => {
           const binaryStr = reader.result as string;
           const uploadPromise = createSharePointDocument(
@@ -726,7 +746,7 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   toggleSharePointDocLoc(_: React.MouseEvent<HTMLElement>, checked?: boolean) {
-    this.setState({ sharePointDocLoc: !!checked }, () => {
+    this.setState({ sharePointDocLoc: !!checked, selectedFiles: [] }, () => {
       this.loadExistingFiles();
     });
   }
@@ -760,21 +780,84 @@ export class Landing extends Component<LandingProps, LandingState> {
     option?: IDropdownOption
   ): void {
     if (option) {
-      console.log(option);
       this.setState({
         selectedDocumentLocation: option.key as string,
         selectedDocumentLocationName: option.text as string,
       });
-      console.log("Selected Key: ", option.key, " and Value: ", option.text);
       this.setState({ currentFolderPath: "" }, () => {
         this.loadExistingFiles();
       });
-      
     }
   }
 
   renderRibbon = () => {
-    const { selectedFiles, sharePointDocLoc } = this.state;
+    const { selectedFiles, sharePointDocLoc, isCollapsed } = this.state;
+    const commandButtons = (
+      <Stack horizontal tokens={ribbonStackTokens}>
+        {!sharePointDocLoc && selectedFiles.length < 2 && (
+          <CommandButton
+            iconProps={{ iconName: "Edit" }}
+            text="Rename"
+            onClick={() => this.performActionOnSelectedFiles("edit")}
+            disabled={selectedFiles.length === 0}
+            className="icon-button"
+          />
+        )}
+        <CommandButton
+          iconProps={{ iconName: "Download" }}
+          text="Download"
+          onClick={() => this.performActionOnSelectedFiles("download")}
+          disabled={selectedFiles.length === 0}
+          className="icon-button"
+        />
+        {!sharePointDocLoc && (
+          <CommandButton
+            iconProps={{ iconName: "Copy" }}
+            text="Duplicate"
+            onClick={() => this.performActionOnSelectedFiles("duplicate")}
+            disabled={selectedFiles.length === 0}
+            className="icon-button"
+          />
+        )}
+        <CommandButton
+          iconProps={{ iconName: "Delete" }}
+          text="Delete"
+          onClick={() => this.performActionOnSelectedFiles("delete")}
+          disabled={selectedFiles.length === 0}
+          className="icon-button"
+        />
+      </Stack>
+    );
+    const menuItems = [
+      {
+        key: "rename",
+        text: "Rename",
+        iconProps: { iconName: "Edit" },
+        onClick: () => this.performActionOnSelectedFiles("edit"),
+        disabled: selectedFiles.length === 0 || selectedFiles.length >= 2,
+      },
+      {
+        key: "download",
+        text: "Download",
+        iconProps: { iconName: "Download" },
+        onClick: () => this.performActionOnSelectedFiles("download"),
+        disabled: selectedFiles.length === 0,
+      },
+      {
+        key: "duplicate",
+        text: "Duplicate",
+        iconProps: { iconName: "Copy" },
+        onClick: () => this.performActionOnSelectedFiles("duplicate"),
+        disabled: selectedFiles.length === 0,
+      },
+      {
+        key: "delete",
+        text: "Delete",
+        iconProps: { iconName: "Delete" },
+        onClick: () => this.performActionOnSelectedFiles("delete"),
+        disabled: selectedFiles.length === 0,
+      },
+    ];
     return (
       <>
         <Stack
@@ -828,38 +911,27 @@ export class Landing extends Component<LandingProps, LandingState> {
             </Stack>
             {selectedFiles.length > 0 && (
               <Stack horizontal tokens={ribbonStackTokens}>
-                {!sharePointDocLoc&&selectedFiles.length < 2 && (
-                  <CommandButton
-                    iconProps={{ iconName: "Edit" }}
-                    text="Rename"
-                    onClick={() => this.performActionOnSelectedFiles("edit")}
-                    disabled={selectedFiles.length === 0}
-                    className="icon-button"
-                  />
-                )}
-                <CommandButton
-                  iconProps={{ iconName: "Download" }}
-                  text="Download"
-                  onClick={() => this.performActionOnSelectedFiles("download")}
-                  disabled={selectedFiles.length === 0}
-                  className="icon-button"
-                />
-                {!sharePointDocLoc&&(
-                <CommandButton
-                  iconProps={{ iconName: "Copy" }}
-                  text="Duplicate"
-                  onClick={() => this.performActionOnSelectedFiles("duplicate")}
-                  disabled={selectedFiles.length === 0}
-                  className="icon-button"
-                />
-              )}
-                <CommandButton
-                  iconProps={{ iconName: "Delete" }}
-                  text="Delete"
-                  onClick={() => this.performActionOnSelectedFiles("delete")}
-                  disabled={selectedFiles.length === 0}
-                  className="icon-button"
-                />
+                <>
+                {this.state.menuVisible && (
+                        <ContextualMenu
+                          items={menuItems}
+                          target={this.state.target}
+                          onDismiss={this.closeMenu}
+                          isBeakVisible={true}
+                        />
+                      )}
+                  {isCollapsed ? (
+                    <>
+                      <CommandButton
+                        text="Actions"
+                        onClick={this.toggleMenu}
+                        className="icon-button"
+                      />
+                    </>
+                  ) : (
+                    commandButtons
+                  )}
+                </>
               </Stack>
             )}
             {selectedFiles.length < 1 && sharePointDocLoc === true && (
@@ -877,20 +949,27 @@ export class Landing extends Component<LandingProps, LandingState> {
     );
   };
 
-  toggleFileSelection = (fileId: string, file?: SharePointDocument) => {
-    // Handle folders specifically for SharePoint documents
+  toggleFileSelection = (fileId: string, file?: SharePointDocument, forceSelect: boolean = false) => {
     if (file && file.filetype === "folder") {
       this.handleFolderClick(file.relativelocation);
       return;
     }
-
+  
     const isSelected = this.state.selectedFiles.includes(fileId);
-    this.setState((prevState) => ({
-      selectedFiles: isSelected
-        ? prevState.selectedFiles.filter((id) => id !== fileId)
-        : [...prevState.selectedFiles, fileId],
-    }));
+  
+    if (forceSelect && !isSelected) {
+      this.setState((prevState) => ({
+        selectedFiles: [...prevState.selectedFiles, fileId],
+      }));
+    } else if (!forceSelect) {
+      this.setState((prevState) => ({
+        selectedFiles: isSelected
+          ? prevState.selectedFiles.filter((id) => id !== fileId)
+          : [...prevState.selectedFiles, fileId],
+      }));
+    }
   };
+  
 
   toggleModal = () => {
     this.setState((prevState) => ({ showModal: !prevState.showModal }));
@@ -938,6 +1017,16 @@ export class Landing extends Component<LandingProps, LandingState> {
                   event.stopPropagation();
                   this.toggleFileSelection(file.sharepointdocumentid, file);
                 }}
+                onContextMenu={(event) => {
+                  if (event.button === 2 && file.sharepointdocumentid) {
+                    event.preventDefault();
+                    const fileId = file.sharepointdocumentid;
+                    const isSelected = this.state.selectedFiles.includes(fileId);
+                    this.toggleFileSelection(file.sharepointdocumentid, file, isSelected);
+                    this.toggleMenu(event);
+                  }
+                }}
+                
               >
                 <div className="file-image">
                   {file.filetype === "folder" ? (
@@ -985,6 +1074,15 @@ export class Landing extends Component<LandingProps, LandingState> {
             event.stopPropagation();
             this.toggleFileSelection(file.noteId!);
           }}
+          onContextMenu={(event) => {
+            if (event.button === 2 && file.noteId) {
+              event.preventDefault();
+              const fileId = file.noteId;
+              const isSelected = this.state.selectedFiles.includes(fileId);
+              this.toggleFileSelection(fileId!, undefined, isSelected);
+              this.toggleMenu(event);
+            }
+          }}
         >
           <div className="file-image">
             <FileIcon
@@ -1016,10 +1114,10 @@ export class Landing extends Component<LandingProps, LandingState> {
       showTooltip,
       selectedDocumentLocation,
       documentLocations,
-      currentFolderPath,
       showModal,
       newFolderName,
     } = this.state;
+
     const dropdownOptions: IDropdownOption[] = documentLocations.map(
       (location) => ({
         key: location.sharepointdocumentlocationid,
@@ -1034,6 +1132,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       <TooltipHost
         content={showTooltip ? SharePointDocLocTooltip : undefined}
         id={tooltipId}
+        closeDelay={500}
       >
         <DefaultButton
           aria-label="more info"
@@ -1147,23 +1246,32 @@ export class Landing extends Component<LandingProps, LandingState> {
               </div>
             )}
           </Dropzone>
-          <Toggle
-            label={<div>SharePoint Documents {docLoctooltip}</div>}
-            inlineLabel
-            onText="On"
-            offText="Off"
-            checked={sharePointDocLoc}
-            onChange={this.toggleSharePointDocLoc}
-          />
-          {sharePointDocLoc && (
-            <Dropdown
-              options={dropdownOptions}
-              disabled={false}
-              styles={dropdownStyles}
-              onChange={this.handleDropdownChange}
-              defaultSelectedKey={selectedDocumentLocation}
+          <Stack
+            horizontal
+            style={{
+              width: "100%",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Toggle
+              label={<div>SharePoint Documents {docLoctooltip}</div>}
+              inlineLabel
+              onText="On"
+              offText="Off"
+              checked={sharePointDocLoc}
+              onChange={this.toggleSharePointDocLoc}
             />
-          )}
+            {sharePointDocLoc && (
+              <Dropdown
+                options={dropdownOptions}
+                disabled={false}
+                styles={dropdownStyles}
+                onChange={this.handleDropdownChange}
+                defaultSelectedKey={selectedDocumentLocation}
+              />
+            )}
+          </Stack>
         </div>
       </>
     );
