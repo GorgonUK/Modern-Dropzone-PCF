@@ -1,6 +1,6 @@
 {
   "name": "dropzone-pcf",
-  "version": "1.0.0",
+  "version": "1.5.0",
   "description": "Dropzone PCF control to append files to related notes",
   "scripts": {
     "build": "pcf-scripts build",
@@ -14,13 +14,20 @@
   },
   "dependencies": {
     "@fluentui/react": "^8.29.0",
+    "@uifabric/file-type-icons": "^7.10.11",
+    "babel-runtime": "^6.26.0",
     "dropzone": "^6.0.0-beta.2",
-    "react": "16.8.6",
-    "react-dom": "16.8.6",
+    "i": "^0.3.7",
+    "npm": "^10.8.1",
+    "process": "^0.11.10",
+    "react-dom": "^17.0.2",
     "react-dropzone": "^14.2.3",
     "react-file-icon": "^1.4.0",
     "react-hot-toast": "^2.4.1",
-    "react-tippy": "^1.4.0"
+    "react-image": "^4.1.0",
+    "react-tippy": "^1.4.0",
+    "url": "^0.11.3",
+    "util": "^0.12.5"
   },
   "devDependencies": {
     "@microsoft/eslint-plugin-power-apps": "^0.2.33",
@@ -40,7 +47,7 @@
     "eslint-plugin-react": "^7.34.1",
     "pcf-scripts": "^1",
     "pcf-start": "^1",
-    "react": "^16.14.0",
+    "react": "^17.0.2",
     "typescript": "^4.9.5"
   }
 }

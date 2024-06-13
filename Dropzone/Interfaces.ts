@@ -36,4 +36,11 @@ export interface SharePointDocument {
   servicetype: number;
   author: string;
   filesize: number;
+  filename?:string;
+}
+
+export interface PreviewFile {
+  filename: string;
+  documentbody: string;
+  mimetype: string;
 }
