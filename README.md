@@ -2,7 +2,8 @@
 
 Introducing the modern file upload component for Dynamics 365, the Dropzone PCF. This component is designed to seamlessly integrate with Dynamics 365 entities that have Notes and SharePoint Document Locations enabled. It offers a suite of functionalities including uploading, downloading, and deleting files, all while maintaining the aesthetic consistency with the new Dynamics 365 UI through the use of Fluent UI and custom CSS.
 
-![2024-06-09_18-42-30](https://github.com/GorgonUK/Modern-Dropzone-PCF/assets/59618079/71a0ecc7-69bb-48fb-8254-2035641647bd)
+![2024-06-13_18-37-18-ezgif com-crop](https://github.com/GorgonUK/Modern-Dropzone-PCF/assets/59618079/2d944c62-8def-4d04-aa9e-706e163f1a2d)
+
 
 ## Installation
 
