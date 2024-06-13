@@ -153,7 +153,6 @@ export async function getSharePointLocations(context: ComponentFramework.Context
   }
 
   const data = await response.json();
-  console.log(data)
 
   return data.value.map((item: any) => ({
     name: item.name,
