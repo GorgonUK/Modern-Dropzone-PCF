@@ -18,6 +18,7 @@ import { Img } from "react-image";
 import {
   isPDF,
   isImage,
+  isExcel,
   createDataUri,
 } from "../utils";
 import {
@@ -52,9 +53,11 @@ import {
 } from "@fluentui/react";
 import {
   getFileTypeIconProps,
-  initializeFileTypeIcons,
-  FileIconType,
+  initializeFileTypeIcons
 } from "@uifabric/file-type-icons";
+import { read, utils } from "xlsx";
+import Spreadsheet from "x-data-spreadsheet";
+import 'x-data-spreadsheet/dist/xspreadsheet.css';
 import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
 import toast, { Toaster } from "react-hot-toast";
@@ -88,6 +91,8 @@ interface LandingState {
   target: HTMLElement | null;
   previewFile: PreviewFile | null;
   isDialogOpen: boolean;
+  xlsxContent: string;
+  xlsxData: SheetData | null;
 }
 
 type FileAction = "edit" | "download" | "duplicate" | "delete" | "preview";
@@ -134,6 +139,10 @@ const searchRibbonStyles: IStackStyles = {
   },
 };
 
+type SheetData = {
+  [sheetName: string]: any[];
+};
+
 const isValidBase64 = (str: string) => {
   try {
     return btoa(atob(str)) === str;
@@ -144,11 +153,18 @@ const isValidBase64 = (str: string) => {
 
 const ribbonStackTokens: IStackTokens = { childrenGap: 10 };
 
-const focusTrapZoneProps: IFocusTrapZoneProps = {
-  forceFocusInsideTrap: true,
-  isClickableOutsideFocusTrap: true,
-  disableFirstFocus: true,
-};
+async function loadExcelFile(documentbody: string): Promise<SheetData> {
+  const buffer = await fetch(documentbody).then(res => res.arrayBuffer());
+  const workbook = read(buffer, { type: 'array' });
+  const sheetsData: SheetData = {};
+
+  workbook.SheetNames.forEach(sheetName => {
+    const worksheet = workbook.Sheets[sheetName];
+    sheetsData[sheetName] = utils.sheet_to_json(worksheet, { header: 1 });
+  });
+
+  return sheetsData;
+}
 
 export class Landing extends Component<LandingProps, LandingState> {
   constructor(props: LandingProps) {
@@ -177,6 +193,8 @@ export class Landing extends Component<LandingProps, LandingState> {
       target: null,
       isDialogOpen: false,
       previewFile: null,
+      xlsxContent: '',
+      xlsxData: null
     };
     this.removeFile = this.removeFile.bind(this);
     this.downloadFile = this.downloadFile.bind(this);
@@ -289,7 +307,47 @@ export class Landing extends Component<LandingProps, LandingState> {
     });
     window.addEventListener("resize", this.handleResize);
   }
-
+  componentDidUpdate(prevProps: LandingProps, prevState: LandingState) {
+   if (this.state.previewFile !== prevState.previewFile && this.state.previewFile && isExcel(this.state.previewFile.mimetype)) {
+    const excelFile = this.state.previewFile.documentbody.replace(/(data:.*?;base64,).*?\1/, '$1');
+    loadExcelFile(excelFile).then(data => {
+      this.setState({ xlsxData: data });
+      this.initializeSpreadsheet(data);
+    });
+    }
+  }
+  initializeSpreadsheet(data: SheetData) {
+    const spreadsheet = new Spreadsheet('#xlsx-preview', {
+      view: {
+        height: () => document.documentElement.clientHeight - 40,
+        width: () => document.documentElement.clientWidth - 60,
+      },
+      showToolbar: true,
+      showGrid: true,
+      showContextmenu: true,
+    });
+    const sheets = Object.keys(data).map((sheetName, index) => {
+      const rows = data[sheetName].map((row: any, rowIndex: number) => {
+        const cells = row.map((cell: any, colIndex: number) => ({
+          text: cell,
+          editable: false,
+          className: 'readonly',
+        }));
+        return {
+          cells,
+          height: 20
+        };
+      });
+      return {
+        name: sheetName,
+        rows,
+        cols: data[sheetName][0].map((_: any, colIndex: number) => ({
+          width: 100,
+        })),
+      };
+    });
+    spreadsheet.loadData(sheets);
+  }
   componentWillUnmount() {
     window.removeEventListener("resize", this.handleResize);
   }
@@ -759,8 +817,10 @@ export class Landing extends Component<LandingProps, LandingState> {
       isDialogOpen: true,
       previewFile: {
         ...file,
-        documentbody: createDataUri(file.mimetype, file.documentbody),
-      }
+        documentbody: createDataUri(file.mimetype, file.documentbody)
+      },
+      xlsxContent: '',
+      xlsxData: null
     });
   }
 
@@ -893,7 +953,7 @@ export class Landing extends Component<LandingProps, LandingState> {
           selectedFiles.length !== 1 || 
           !this.state.files.some(file => 
             selectedFiles.includes(file.noteId!) && 
-            (isImage(file.mimetype!) || isPDF(file.mimetype!))
+            (isImage(file.mimetype!) || isPDF(file.mimetype!) || isExcel(file.mimetype!))
           )
       },
       {
@@ -1196,7 +1256,8 @@ export class Landing extends Component<LandingProps, LandingState> {
       showModal,
       newFolderName,
       isDialogOpen,
-      previewFile
+      previewFile,
+      xlsxContent
     } = this.state;
 
     const dropdownOptions: IDropdownOption[] = documentLocations.map(
@@ -1269,6 +1330,9 @@ export class Landing extends Component<LandingProps, LandingState> {
                   </p>
                 </object>
               )}
+              {isExcel(previewFile.mimetype) && (
+                  <div id="xlsx-preview" style={{ height: '100%' }}></div>
+                )}
               {isImage(previewFile.mimetype) && (
                 <Img
                   src={previewFile.documentbody.replace(/(data:image\/[a-zA-Z]+;base64,).*?\1/, '$1')}
