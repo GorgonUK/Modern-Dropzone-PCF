@@ -66,7 +66,7 @@ p.file-size {
 }
 
 .file-image {
-  width: 50%;
+  width: 100%;
 }
 
 .file-box {
@@ -138,8 +138,20 @@ p.file-size {
   right: 0;
   bottom: 5px;
 }
+
 .spinner-box {
   display: flex;
   width: 100%;
+  justify-content: center;
+}
+
+.preview-modal-content {
+  height: 100% !important;
+}
+
+.scrollable-area{
+  height: 96%;
+  display: flex;
+  flex-direction: column;
   justify-content: center;
 }
