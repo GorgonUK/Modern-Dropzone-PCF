@@ -904,7 +904,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                 selectedFiles.length !== 1 || 
                 !this.state.files.some(file => 
                   selectedFiles.includes(file.noteId!) && 
-                  (isImage(file.mimetype!) || isPDF(file.mimetype!))
+                  (isImage(file.mimetype!) || isPDF(file.mimetype!) || isExcel(file.mimetype!))
                 )
               }
               className="icon-button"
