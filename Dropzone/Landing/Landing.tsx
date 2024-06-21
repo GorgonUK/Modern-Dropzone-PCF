@@ -353,8 +353,13 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   handleResize() {
-    this.setState({ isCollapsed: window.innerWidth < 864 });
+    const element = document.querySelector('.ribbon-dropzone-wrapper');
+    if (element) {
+      const wrapper = element.getBoundingClientRect();
+      this.setState({ isCollapsed: wrapper.width < 703 });
+    }
   }
+  
 
   toggleMenu(event: React.MouseEvent<HTMLElement>) {
     this.setState({
