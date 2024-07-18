@@ -44,3 +44,10 @@ export interface PreviewFile {
   documentbody: string;
   mimetype: string;
 }
+
+export interface EntityMetadata {
+  schemaName: string;
+  logicalCollectionName: string;
+  clientUrl: string;
+  entityId: string;
+}

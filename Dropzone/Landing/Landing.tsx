@@ -1117,7 +1117,6 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.setState({ newFolderName: newValue || "" });
   };
 
-
   renderFileList() {
     const { sharePointDocLoc, selectedFiles, currentFolderPath } = this.state;
     const files = this.getFilteredAndSortedFiles();
@@ -1262,7 +1261,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       newFolderName,
       isDialogOpen,
       previewFile,
-      xlsxContent
+      sharePointData
     } = this.state;
 
     const dropdownOptions: IDropdownOption[] = documentLocations.map(
@@ -1272,7 +1271,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       })
     );
     const files = this.getFilteredAndSortedFiles();
-    const isEmpty = files.length === 0;
+    const isEmpty = sharePointDocLoc ? sharePointData.length === 0 : files.length === 0;
     const entityIdExists = (this.props.context as any).page.entityId;
     const editingFile = files.find((file) => file.noteId === editingFileId);
     const docLoctooltip = (
@@ -1465,6 +1464,7 @@ export class Landing extends Component<LandingProps, LandingState> {
               offText="Off"
               checked={sharePointDocLoc}
               onChange={this.toggleSharePointDocLoc}
+              disabled={false}
             />
             {sharePointDocLoc && (
               <Dropdown
