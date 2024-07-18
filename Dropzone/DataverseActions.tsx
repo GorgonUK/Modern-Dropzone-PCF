@@ -1,5 +1,43 @@
 import { IInputs } from "./generated/ManifestTypes";
+import { EntityMetadata } from "./Interfaces";
+let ENTITY_METADATA: EntityMetadata | null = null;
 
+async function getEntityMetadata(context: ComponentFramework.Context<IInputs>): Promise<EntityMetadata | null> {
+  if (ENTITY_METADATA) {
+    return ENTITY_METADATA;
+  }
+  const dynamicsUrl = (context as any).page.getClientUrl();
+  const entityName = (context as any).page.entityTypeName;
+  const apiUrl = `${dynamicsUrl}/api/data/v9.0/EntityDefinitions(LogicalName='${entityName}')?$select=SchemaName,LogicalCollectionName`;
+  
+  try {
+    const response = await fetch(apiUrl, {
+      headers: {
+        "OData-MaxVersion": "4.0",
+        "OData-Version": "4.0",
+        "Accept": "application/json",
+        "Content-Type": "application/json; charset=utf-8"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    ENTITY_METADATA =  {
+      schemaName: data.SchemaName.toLowerCase(),
+      logicalCollectionName: data.LogicalCollectionName,
+      clientUrl: (context as any).page.getClientUrl(),
+      entityId: (context as any).page.entityId
+    };
+    return ENTITY_METADATA;
+
+  } catch (error) {
+    console.error("Error fetching entity metadata:", error);
+    return null;
+  }
+}
 export async function createRelatedNote(
   context: ComponentFramework.Context<IInputs>,
   fileName: string,
@@ -8,7 +46,11 @@ export async function createRelatedNote(
   mimeType: string
 ) {
   const entity = "annotation";
-  const objectId = `objectid_${(context as any).page.entityTypeName}@odata.bind`;
+  const metadata = await getEntityMetadata(context);
+  if (!metadata) {
+    return { success: false, message: "Failed to retrieve entity metadata" };
+  }
+  const objectId = `objectid_${metadata.schemaName}@odata.bind`;
   const record = {
     "isdocument": true,
     "filename": fileName,
@@ -16,7 +58,7 @@ export async function createRelatedNote(
     "filesize": fileSize,
     "mimetype": mimeType,
     "documentbody": base64.split(',')[1],
-    [objectId]: `/${(context as any).page.entityTypeName}s(${(context as any).page.entityId})`
+    [objectId]: `/${metadata?.logicalCollectionName}(${metadata.entityId})`
   };
 
   try {
@@ -31,13 +73,15 @@ export async function createRelatedNote(
 export async function getRelatedNotes(
   context: ComponentFramework.Context<IInputs>
 ) {
-  const entityName = (context as any).page.entityTypeName;
-  const entityId = (context as any).page.entityId;
-  const filter = `_objectid_value eq ${entityId}`;
+  const metadata = await getEntityMetadata(context);
+  if (!metadata) {
+    return { success: false, message: "Failed to retrieve entity metadata", data: [] };
+  }
+  const filter = `_objectid_value eq ${metadata.entityId}`;
 
   try {
     const result = await context.webAPI.retrieveMultipleRecords('annotation', `?$filter=${filter}&$orderby=createdon desc`);
-    const filteredEntities = result.entities.filter((entity: any) => entity.objecttypecode === entityName);
+    const filteredEntities = result.entities.filter((entity: any) => entity.objecttypecode === metadata.schemaName);
     return { success: true, data: filteredEntities };
   } catch (error) {
     console.error("Error fetching notes:", error);
@@ -87,7 +131,11 @@ export async function duplicateRelatedNote(
   noteId: string
 ) {
   const entity = "annotation";
-  const objectId = `objectid_${(context as any).page.entityTypeName}@odata.bind`;
+  const metadata = await getEntityMetadata(context);
+  if (!metadata) {
+    return { success: false, message: "Failed to retrieve entity metadata" };
+  }
+  const objectId = `objectid_${metadata.schemaName}@odata.bind`;
   try {
     const originalNote = await context.webAPI.retrieveRecord(entity, noteId);
     const newNoteData = {
@@ -98,7 +146,7 @@ export async function duplicateRelatedNote(
       "filesize": originalNote.filesize,
       "mimetype": originalNote.mimetype,
       "documentbody": originalNote.documentbody,
-      [objectId]: `/${(context as any).page.entityTypeName}s(${(context as any).page.entityId})`
+      [objectId]: `/${metadata.logicalCollectionName}(${metadata.entityId})`
     };
 
     const creationResult = await context.webAPI.createRecord(entity, newNoteData);
@@ -110,15 +158,17 @@ export async function duplicateRelatedNote(
 }
 
 export async function getSharePointLocations(context: ComponentFramework.Context<IInputs>): Promise<{ name: string, sharepointdocumentlocationid:string }[]> {
-  const entityId = (context as any).page.entityId;
-  const dynamicsUrl = (context as any).page.getClientUrl()
+  const metadata = await getEntityMetadata(context);
+  if (!metadata) {
+    return [];
+  }
   const fetchXml = `
   <fetch mapping="logical" version="1.0">
   <entity name="sharepointdocumentlocation">
     <attribute name="name" />
     <attribute name="sharepointdocumentlocationid" />
     <filter type="and">
-      <condition attribute="regardingobjectid" operator="eq" value="${entityId}" />
+      <condition attribute="regardingobjectid" operator="eq" value="${metadata.entityId}" />
       <condition attribute="statecode" operator="eq" value="0" />
       <condition attribute="statuscode" operator="eq" value="1" />
       <condition attribute="sitecollectionid" operator="not-null" />
@@ -133,7 +183,7 @@ export async function getSharePointLocations(context: ComponentFramework.Context
 </fetch>
   `;
   const encodedFetchXml = encodeURIComponent(fetchXml);
-  const url = `${dynamicsUrl}/api/data/v9.0/sharepointdocumentlocations?fetchXml=${encodedFetchXml}`;
+  const url = `${metadata.clientUrl}/api/data/v9.0/sharepointdocumentlocations?fetchXml=${encodedFetchXml}`;
 
   
   const headers = {
@@ -166,9 +216,10 @@ export async function getSharePointData(
   folderPath?: string,
   selectedDocumentLocationName?:string
 ): Promise<any[]> {
-  const entityName = (context as any).page.entityTypeName;
-  const entityId = (context as any).page.entityId;
-  const dynamicsUrl = (context as any).page.getClientUrl();
+  const metadata = await getEntityMetadata(context);
+  if (!metadata) {
+    return [];
+  }
   let filters = '';
   let folderFilter = '';
   if (folderPath) {
@@ -218,9 +269,9 @@ export async function getSharePointData(
         <filter>
           <condition attribute="isrecursivefetch" operator="eq" value="0"/>
         </filter>
-        <link-entity name="${entityName}" from="${entityName}id" to="regardingobjectid" alias="bb">
+        <link-entity name="${metadata.schemaName}" from="${metadata.schemaName}id" to="regardingobjectid" alias="bb">
           <filter type="and">
-            <condition attribute="${entityName}id" operator="eq" uitype="${entityName}" value="${entityId}"/>
+            <condition attribute="${metadata.schemaName}id" operator="eq" uitype="${metadata.schemaName}" value="${metadata.entityId}"/>
           </filter>
         </link-entity>
       </entity>
@@ -228,7 +279,7 @@ export async function getSharePointData(
   `;
 
   const encodedFetchXml = encodeURIComponent(fetchXml);
-  const url = `${dynamicsUrl}/api/data/v9.0/sharepointdocuments?fetchXml=${encodedFetchXml}`;
+  const url = `${metadata.clientUrl}/api/data/v9.0/sharepointdocuments?fetchXml=${encodedFetchXml}`;
 
   const headers = {
     "Accept": "application/json",
@@ -276,9 +327,10 @@ export async function getSharePointData(
   }));
 }
 export async function getSharePointFolderData(context: ComponentFramework.Context<IInputs>,folderPath?: string,selectedDocumentLocation?:string,selectedDocumentLocationName?:string): Promise<any[]> {
-  const entityName = (context as any).page.entityTypeName;
-  const entityId = (context as any).page.entityId;
-  const dynamicsUrl = (context as any).page.getClientUrl();
+  const metadata = await getEntityMetadata(context);
+  if (!metadata) {
+    return [];
+  }
   let folderFilter = '';
   let filters = '';
   if (folderPath) {
@@ -329,9 +381,9 @@ export async function getSharePointFolderData(context: ComponentFramework.Contex
         </filter>
 ${filters}
         <order attribute="relativelocation" descending="false"/>
-        <link-entity name="${entityName}" from="${entityName}id" to="regardingobjectid" alias="bb">
+        <link-entity name="${metadata.schemaName}" from="${metadata.schemaName}id" to="regardingobjectid" alias="bb">
           <filter type="and">
-            <condition attribute="${entityName}id" operator="eq" uitype="${entityName}" value="${entityId}"/>
+            <condition attribute="${metadata.schemaName}id" operator="eq" uitype="${metadata.schemaName}" value="${metadata.entityId}"/>
           </filter>
         </link-entity>
       </entity>
@@ -339,7 +391,7 @@ ${filters}
   `;
 
   const encodedFetchXml = encodeURIComponent(fetchXml);
-  const url = `${dynamicsUrl}/api/data/v9.0/sharepointdocuments?fetchXml=${encodedFetchXml}`;
+  const url = `${metadata.clientUrl}/api/data/v9.0/sharepointdocuments?fetchXml=${encodedFetchXml}`;
 
   const headers = {
     "Accept": "application/json",
@@ -394,10 +446,8 @@ export async function createSharePointDocument(
   folderPath: string,
   locationId: string
 ): Promise<void> {
-  const dynamicsUrl = (context as any).page.getClientUrl()
-  const url = `${dynamicsUrl}/api/data/v9.0/UploadDocument`;
-  const entityName = (context as any).page.entityTypeName;
-  const entityId = (context as any).page.entityId;
+  const metadata = await getEntityMetadata(context);
+  const url = `${metadata?.clientUrl}/api/data/v9.0/UploadDocument`;
   const base64 = dataURL.split(',')[1];
   const body = JSON.stringify({
       "Content": base64,
@@ -408,8 +458,8 @@ export async function createSharePointDocument(
       },
       "OverwriteExisting": true,
       "ParentEntityReference": {
-          "@odata.type": `Microsoft.Dynamics.CRM.${entityName}`,
-          [`${entityName}id`]: `${entityId}`
+          "@odata.type": `Microsoft.Dynamics.CRM.${metadata?.schemaName}`,
+          [`${metadata?.schemaName}id`]: `${metadata?.entityId}`
       },
       "FolderPath": `${folderPath}`
   });
@@ -440,11 +490,8 @@ export async function deleteSharePointDocument(
   fileType: string,
   locationId: string
 ): Promise<void> {
-  const entityName = (context as any).page.entityTypeName;
-  const entityId = (context as any).page.entityId;
-  const dynamicsUrl = (context as any).page.getClientUrl();
-  const url = `${dynamicsUrl}/api/data/v9.0/DeleteDocument`;
-
+  const metadata = await getEntityMetadata(context);
+  const url = `${metadata?.clientUrl}/api/data/v9.0/DeleteDocument`;
   const body = JSON.stringify({
     "Entities": [
       {
@@ -456,8 +503,8 @@ export async function deleteSharePointDocument(
       }
     ],
     "ParentEntityReference": {
-      "@odata.type": `Microsoft.Dynamics.CRM.${entityName}`,
-      [`${entityName}id`]: `${entityId}`
+      "@odata.type": `Microsoft.Dynamics.CRM.${metadata?.schemaName}`,
+      [`${metadata?.schemaName}id`]: `${metadata?.entityId}`
     }
   });
 
@@ -486,18 +533,16 @@ export async function createSharePointFolder(
   folderPath: string,
   locationId: string
 ): Promise<void> {
-  const dynamicsUrl = (context as any).page.getClientUrl()
-  const url = `${dynamicsUrl}/api/data/v9.0/NewDocument`;
-  const entityName = (context as any).page.entityTypeName;
-  const entityId = (context as any).page.entityId;
+  const metadata = await getEntityMetadata(context);
+  const url = `${metadata?.clientUrl}/api/data/v9.0/NewDocument`;
   const body = JSON.stringify({
       "FileName": folderName,
       "LocationId": locationId,
       "IsFolder": true,
       "FolderPath": folderPath,
       "ParentEntityReference": {
-          "@odata.type": `Microsoft.Dynamics.CRM.${entityName}`,
-          [`${entityName}id`]: `${entityId}`
+          "@odata.type": `Microsoft.Dynamics.CRM.${metadata?.schemaName}`,
+          [`${metadata?.schemaName}id`]: `${metadata?.entityId}`
       }
   });
 
