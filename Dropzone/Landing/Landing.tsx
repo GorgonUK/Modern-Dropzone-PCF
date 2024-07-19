@@ -15,12 +15,7 @@ import {
 } from "../DataverseActions";
 import { FileData, SharePointDocument, PreviewFile } from "../Interfaces";
 import { Img } from "react-image";
-import {
-  isPDF,
-  isImage,
-  isExcel,
-  createDataUri,
-} from "../utils";
+import { isPDF, isImage, isExcel, createDataUri } from "../utils";
 import {
   DefaultButton,
   PrimaryButton,
@@ -53,11 +48,11 @@ import {
 } from "@fluentui/react";
 import {
   getFileTypeIconProps,
-  initializeFileTypeIcons
+  initializeFileTypeIcons,
 } from "@uifabric/file-type-icons";
 import { read, utils } from "xlsx";
 import Spreadsheet from "x-data-spreadsheet";
-import 'x-data-spreadsheet/dist/xspreadsheet.css';
+import "x-data-spreadsheet/dist/xspreadsheet.css";
 import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
 import toast, { Toaster } from "react-hot-toast";
@@ -154,11 +149,11 @@ const isValidBase64 = (str: string) => {
 const ribbonStackTokens: IStackTokens = { childrenGap: 10 };
 
 async function loadExcelFile(documentbody: string): Promise<SheetData> {
-  const buffer = await fetch(documentbody).then(res => res.arrayBuffer());
-  const workbook = read(buffer, { type: 'array' });
+  const buffer = await fetch(documentbody).then((res) => res.arrayBuffer());
+  const workbook = read(buffer, { type: "array" });
   const sheetsData: SheetData = {};
 
-  workbook.SheetNames.forEach(sheetName => {
+  workbook.SheetNames.forEach((sheetName) => {
     const worksheet = workbook.Sheets[sheetName];
     sheetsData[sheetName] = utils.sheet_to_json(worksheet, { header: 1 });
   });
@@ -193,8 +188,8 @@ export class Landing extends Component<LandingProps, LandingState> {
       target: null,
       isDialogOpen: false,
       previewFile: null,
-      xlsxContent: '',
-      xlsxData: null
+      xlsxContent: "",
+      xlsxData: null,
     };
     this.removeFile = this.removeFile.bind(this);
     this.downloadFile = this.downloadFile.bind(this);
@@ -308,16 +303,23 @@ export class Landing extends Component<LandingProps, LandingState> {
     window.addEventListener("resize", this.handleResize);
   }
   componentDidUpdate(prevProps: LandingProps, prevState: LandingState) {
-   if (this.state.previewFile !== prevState.previewFile && this.state.previewFile && isExcel(this.state.previewFile.mimetype)) {
-    const excelFile = this.state.previewFile.documentbody.replace(/(data:.*?;base64,).*?\1/, '$1');
-    loadExcelFile(excelFile).then(data => {
-      this.setState({ xlsxData: data });
-      this.initializeSpreadsheet(data);
-    });
+    if (
+      this.state.previewFile !== prevState.previewFile &&
+      this.state.previewFile &&
+      isExcel(this.state.previewFile.mimetype)
+    ) {
+      const excelFile = this.state.previewFile.documentbody.replace(
+        /(data:.*?;base64,).*?\1/,
+        "$1"
+      );
+      loadExcelFile(excelFile).then((data) => {
+        this.setState({ xlsxData: data });
+        this.initializeSpreadsheet(data);
+      });
     }
   }
   initializeSpreadsheet(data: SheetData) {
-    const spreadsheet = new Spreadsheet('#xlsx-preview', {
+    const spreadsheet = new Spreadsheet("#xlsx-preview", {
       view: {
         height: () => document.documentElement.clientHeight - 40,
         width: () => document.documentElement.clientWidth - 60,
@@ -331,11 +333,11 @@ export class Landing extends Component<LandingProps, LandingState> {
         const cells = row.map((cell: any, colIndex: number) => ({
           text: cell,
           editable: false,
-          className: 'readonly',
+          className: "readonly",
         }));
         return {
           cells,
-          height: 20
+          height: 20,
         };
       });
       return {
@@ -817,10 +819,10 @@ export class Landing extends Component<LandingProps, LandingState> {
       isDialogOpen: true,
       previewFile: {
         ...file,
-        documentbody: createDataUri(file.mimetype, file.documentbody)
+        documentbody: createDataUri(file.mimetype, file.documentbody),
       },
-      xlsxContent: '',
-      xlsxData: null
+      xlsxContent: "",
+      xlsxData: null,
     });
   }
 
@@ -901,10 +903,13 @@ export class Landing extends Component<LandingProps, LandingState> {
               iconProps={{ iconName: "View" }}
               onClick={() => this.performActionOnSelectedFiles("preview")}
               disabled={
-                selectedFiles.length !== 1 || 
-                !this.state.files.some(file => 
-                  selectedFiles.includes(file.noteId!) && 
-                  (isImage(file.mimetype!) || isPDF(file.mimetype!) || isExcel(file.mimetype!))
+                selectedFiles.length !== 1 ||
+                !this.state.files.some(
+                  (file) =>
+                    selectedFiles.includes(file.noteId!) &&
+                    (isImage(file.mimetype!) ||
+                      isPDF(file.mimetype!) ||
+                      isExcel(file.mimetype!))
                 )
               }
               className="icon-button"
@@ -950,11 +955,14 @@ export class Landing extends Component<LandingProps, LandingState> {
         iconProps: { iconName: "View" },
         onClick: () => this.performActionOnSelectedFiles("preview"),
         disabled:
-          selectedFiles.length !== 1 || 
-          !this.state.files.some(file => 
-            selectedFiles.includes(file.noteId!) && 
-            (isImage(file.mimetype!) || isPDF(file.mimetype!) || isExcel(file.mimetype!))
-          )
+          selectedFiles.length !== 1 ||
+          !this.state.files.some(
+            (file) =>
+              selectedFiles.includes(file.noteId!) &&
+              (isImage(file.mimetype!) ||
+                isPDF(file.mimetype!) ||
+                isExcel(file.mimetype!))
+          ),
       },
       {
         key: "rename",
@@ -1112,7 +1120,6 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.setState({ newFolderName: newValue || "" });
   };
 
-
   renderFileList() {
     const { sharePointDocLoc, selectedFiles, currentFolderPath } = this.state;
     const files = this.getFilteredAndSortedFiles();
@@ -1257,7 +1264,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       newFolderName,
       isDialogOpen,
       previewFile,
-      xlsxContent
+      xlsxContent,
     } = this.state;
 
     const dropdownOptions: IDropdownOption[] = documentLocations.map(
@@ -1319,7 +1326,10 @@ export class Landing extends Component<LandingProps, LandingState> {
             <div className={"scrollable-area"}>
               {isPDF(previewFile.mimetype) && (
                 <object
-                  data={previewFile.documentbody.replace(/(data:application\/pdf;base64,).*?\1/, '$1')}
+                  data={previewFile.documentbody.replace(
+                    /(data:application\/pdf;base64,).*?\1/,
+                    "$1"
+                  )}
                   type="application/pdf"
                   width="100%"
                   height="100%"
@@ -1331,11 +1341,14 @@ export class Landing extends Component<LandingProps, LandingState> {
                 </object>
               )}
               {isExcel(previewFile.mimetype) && (
-                  <div id="xlsx-preview" style={{ height: '100%' }}></div>
-                )}
+                <div id="xlsx-preview" style={{ height: "100%" }}></div>
+              )}
               {isImage(previewFile.mimetype) && (
                 <Img
-                  src={previewFile.documentbody.replace(/(data:image\/[a-zA-Z]+;base64,).*?\1/, '$1')}
+                  src={previewFile.documentbody.replace(
+                    /(data:image\/[a-zA-Z]+;base64,).*?\1/,
+                    "$1"
+                  )}
                   alt={previewFile.filename}
                 />
               )}
