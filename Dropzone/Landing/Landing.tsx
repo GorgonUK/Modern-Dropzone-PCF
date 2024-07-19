@@ -1,6 +1,7 @@
 import React, { Component } from "react";
 import Dropzone from "react-dropzone";
 import { IInputs } from "../generated/ManifestTypes";
+import "../css/Dropzone.css";
 import {
   createRelatedNote,
   getRelatedNotes,
@@ -58,7 +59,7 @@ import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
 import toast, { Toaster } from "react-hot-toast";
 import FolderIcon from "./FolderIcon";
-import "../css/Dropzone.css";
+import { getEntityMetadata } from "../utils";
 
 export interface LandingProps {
   context?: ComponentFramework.Context<IInputs>;
@@ -90,6 +91,7 @@ interface LandingState {
   xlsxContent: string;
   xlsxData: SheetData | null;
   sharePointEnabled: boolean;
+  userPreference: boolean;
 }
 
 type FileAction = "edit" | "download" | "duplicate" | "delete" | "preview";
@@ -193,6 +195,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       xlsxContent: "",
       xlsxData: null,
       sharePointEnabled: false,
+      userPreference: false,
     };
     this.removeFile = this.removeFile.bind(this);
     this.downloadFile = this.downloadFile.bind(this);
@@ -228,7 +231,6 @@ export class Landing extends Component<LandingProps, LandingState> {
             sharePointData: data,
             currentFolderPath: folderPath,
           });
-          console.log("Folder Path: ", folderPath);
         } catch (error) {
           console.error("Error fetching folder data:", error);
         } finally {
@@ -273,13 +275,14 @@ export class Landing extends Component<LandingProps, LandingState> {
     try {
       const response = await getSharePointLocations(context!);
       const firstLocationId =
-        response.length > 0 ? response[0].sharepointdocumentlocationid : null;
-      const firstLocationName = response.length > 0 ? response[0].name : null;
-      this.setState({
+        response.length > 0 ? response[0].sharepointdocumentlocationid : '';
+      const firstLocationName =
+        response.length > 0 ? response[0].name : '';
+      this.setState((prevState) => ({
         documentLocations: response,
-        selectedDocumentLocation: firstLocationId,
-        selectedDocumentLocationName: firstLocationName!,
-      });
+        selectedDocumentLocation: prevState.selectedDocumentLocation || firstLocationId,
+        selectedDocumentLocationName: prevState.selectedDocumentLocationName || firstLocationName,
+      }));
     } catch (error) {
       console.error("Error fetching SharePoint document locations:", error);
     }
@@ -314,6 +317,26 @@ export class Landing extends Component<LandingProps, LandingState> {
     );
   }
 
+  async getUserSettings(): Promise<any>{
+    const settings = localStorage.getItem("userSettings");
+    return settings ? JSON.parse(settings) : null;
+  }
+
+  async checkUserSettings(): Promise<boolean> {
+    const settings = localStorage.getItem("userSettings");
+    if (settings) {
+      const parsedSettings = JSON.parse(settings);
+      const metadata = await getEntityMetadata(this.props.context!);
+      if (parsedSettings.tableName === metadata?.schemaName) {
+        return parsedSettings.NotesOrSharePoint || false;
+      } else {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
+
   async checkSharePointIntegration(): Promise<boolean> {
     const response = await getSharePointLocations(this.props.context!);
     return response.length === 0 ? true : false;
@@ -321,10 +344,33 @@ export class Landing extends Component<LandingProps, LandingState> {
 
   async componentDidMount() {
     const sharePointEnabled = await this.checkSharePointIntegration();
-    this.setState({ sharePointEnabled });
-    this.loadExistingFiles().then(() => {
-      this.setState({ isLoading: false });
-    });
+    const userPreference = await this.checkUserSettings();
+    const settings = await this.getUserSettings();
+    if (settings && settings.selectedDocumentLocation && settings.selectedDocumentLocationName) {
+      
+      this.setState({
+        selectedDocumentLocation: settings.selectedDocumentLocation,
+        selectedDocumentLocationName: settings.selectedDocumentLocationName,
+      }, () => {
+        this.setState({
+          sharePointEnabled,
+          sharePointDocLoc: userPreference,
+        }, () => {
+          this.loadExistingFiles().then(() => {
+            this.setState({ isLoading: false });
+          });
+        });
+      });
+    } else {
+      this.setState({
+        sharePointEnabled,
+        sharePointDocLoc: userPreference,
+      }, () => {
+        this.loadExistingFiles().then(() => {
+          this.setState({ isLoading: false });
+        });
+      });
+    }
     window.addEventListener("resize", this.handleResize);
   }
   componentDidUpdate(prevProps: LandingProps, prevState: LandingState) {
@@ -888,15 +934,35 @@ export class Landing extends Component<LandingProps, LandingState> {
   toggleTooltip() {
     this.setState((prevState) => ({ showTooltip: !prevState.showTooltip }));
   }
-
-  toggleSharePointDocLoc(_: React.MouseEvent<HTMLElement>, checked?: boolean) {
+  async saveUserSettings(
+    sharePointEnabled: boolean,
+    selectedDocumentLocation: string | null,
+    selectedDocumentLocationName: string
+  
+  ) {
+    const metadata = await getEntityMetadata(this.props.context!);
+    const settings = {
+      tableName: metadata?.schemaName,
+      NotesOrSharePoint: sharePointEnabled,
+      selectedDocumentLocation:selectedDocumentLocation,
+      selectedDocumentLocationName:selectedDocumentLocationName
+    };
+    localStorage.setItem("userSettings", JSON.stringify(settings));
+  }
+  toggleSharePointDocLoc = async (
+    _: React.MouseEvent<HTMLElement>,
+    checked?: boolean
+  ) => {
+    const sharePointDocLoc = !!checked;
+    const { selectedDocumentLocation, selectedDocumentLocationName } = this.state;
     this.setState(
-      { sharePointDocLoc: !!checked, selectedFiles: [], isLoading: true },
-      () => {
+      { sharePointDocLoc, selectedFiles: [], isLoading: true },
+      async () => {
+        await this.saveUserSettings(sharePointDocLoc,selectedDocumentLocation,selectedDocumentLocationName);
         this.loadExistingFiles();
       }
     );
-  }
+  };
   getFilteredAndSortedFiles() {
     const { files, notesSearchText } = this.state;
     return files.filter((file) =>
@@ -922,20 +988,33 @@ export class Landing extends Component<LandingProps, LandingState> {
       });
   }
 
-  handleDropdownChange(
+  async handleDropdownChange(
     event: React.FormEvent<HTMLDivElement>,
     option?: IDropdownOption
-  ): void {
+  ): Promise<void> {
     if (option) {
-      this.setState({
-        selectedDocumentLocation: option.key as string,
-        selectedDocumentLocationName: option.text as string,
-      });
-      this.setState({ currentFolderPath: "" }, () => {
-        this.loadExistingFiles();
-      });
+      const selectedDocumentLocation = option.key as string;
+      const selectedDocumentLocationName = option.text as string;
+      
+      this.setState(
+        {
+          selectedDocumentLocation,
+          selectedDocumentLocationName,
+        },
+        async () => {
+          await this.saveUserSettings(
+            this.state.sharePointDocLoc,
+            selectedDocumentLocation,
+            selectedDocumentLocationName
+          );
+          this.setState({ currentFolderPath: "" }, () => {
+            this.loadExistingFiles();
+          });
+        }
+      );
     }
   }
+  
 
   renderRibbon = () => {
     const { selectedFiles, sharePointDocLoc, isCollapsed } = this.state;
@@ -1177,7 +1256,7 @@ export class Landing extends Component<LandingProps, LandingState> {
     if (sharePointDocLoc) {
       return (
         <div style={{ display: "flex", alignItems: "center" }}>
-          {currentFolderPath && (
+          {currentFolderPath && sharePointData.length < 0 && (
             <div style={{ marginRight: "20px" }}>
               <IconButton
                 iconProps={{ iconName: "Back" }}
@@ -1206,7 +1285,12 @@ export class Landing extends Component<LandingProps, LandingState> {
                   this.toggleFileSelection(file.sharepointdocumentid, file);
                 }}
                 onContextMenu={(event) => {
-                  if (event.button === 2 && file.sharepointdocumentid) {
+                  event.preventDefault();
+                  if (
+                    file.filetype !== "folder" &&
+                    event.button === 2 &&
+                    file.sharepointdocumentid
+                  ) {
                     event.preventDefault();
                     const fileId = file.sharepointdocumentid;
                     const isSelected =
@@ -1322,7 +1406,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       previewFile,
       sharePointData,
       sharePointEnabled,
-      currentFolderPath,
+      currentFolderPath
     } = this.state;
 
     const dropdownOptions: IDropdownOption[] = documentLocations.map(
@@ -1566,7 +1650,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                 disabled={false}
                 styles={dropdownStyles}
                 onChange={this.handleDropdownChange}
-                defaultSelectedKey={selectedDocumentLocation}
+                selectedKey={selectedDocumentLocation}
               />
             )}
           </Stack>
