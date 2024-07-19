@@ -1,43 +1,6 @@
 import { IInputs } from "./generated/ManifestTypes";
-import { EntityMetadata } from "./Interfaces";
-let ENTITY_METADATA: EntityMetadata | null = null;
+import { getEntityMetadata } from "./utils";
 
-async function getEntityMetadata(context: ComponentFramework.Context<IInputs>): Promise<EntityMetadata | null> {
-  if (ENTITY_METADATA) {
-    return ENTITY_METADATA;
-  }
-  const dynamicsUrl = (context as any).page.getClientUrl();
-  const entityName = (context as any).page.entityTypeName;
-  const apiUrl = `${dynamicsUrl}/api/data/v9.0/EntityDefinitions(LogicalName='${entityName}')?$select=SchemaName,LogicalCollectionName`;
-  
-  try {
-    const response = await fetch(apiUrl, {
-      headers: {
-        "OData-MaxVersion": "4.0",
-        "OData-Version": "4.0",
-        "Accept": "application/json",
-        "Content-Type": "application/json; charset=utf-8"
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    ENTITY_METADATA =  {
-      schemaName: data.SchemaName.toLowerCase(),
-      logicalCollectionName: data.LogicalCollectionName,
-      clientUrl: (context as any).page.getClientUrl(),
-      entityId: (context as any).page.entityId
-    };
-    return ENTITY_METADATA;
-
-  } catch (error) {
-    console.error("Error fetching entity metadata:", error);
-    return null;
-  }
-}
 export async function createRelatedNote(
   context: ComponentFramework.Context<IInputs>,
   fileName: string,
@@ -326,6 +289,7 @@ export async function getSharePointData(
     filesize: item.filesize
   }));
 }
+
 export async function getSharePointFolderData(context: ComponentFramework.Context<IInputs>,folderPath?: string,selectedDocumentLocation?:string,selectedDocumentLocationName?:string): Promise<any[]> {
   const metadata = await getEntityMetadata(context);
   if (!metadata) {
