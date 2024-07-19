@@ -1296,7 +1296,9 @@ export class Landing extends Component<LandingProps, LandingState> {
                 arrowSize="regular"
                 theme="light"
               >
-                <p className="file-name">{this.middleEllipsis(file.filename)}</p>
+                <p className="file-name">
+                  {this.middleEllipsis(file.filename)}
+                </p>
               </Tooltip>
               <p className="file-size">{this.formatFileSize(file.filesize)}</p>
             </div>
@@ -1504,31 +1506,38 @@ export class Landing extends Component<LandingProps, LandingState> {
                     </div>
                   ) : (
                     <>
-  <input {...getInputProps()} />
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-    <div>
-      {currentFolderPath && (
-        <IconButton
-          iconProps={{ iconName: "Back" }}
-          title="Back"
-          ariaLabel="Go back"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            this.handleBackClick();
-          }}
-        />
-      )}
-    </div>
-    <div style={{ flexGrow: 1, textAlign: "center" }}>
-      {isEmpty ? (
-        <p>Drag and drop files here or Browse for files</p>
-      ) : (
-        this.renderFileList()
-      )}
-    </div>
-  </div>
-</>
+                      <input {...getInputProps()} />
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          width: "100%",
+                        }}
+                      >
+                        <div>
+                          {currentFolderPath && (
+                            <IconButton
+                              iconProps={{ iconName: "Back" }}
+                              title="Back"
+                              ariaLabel="Go back"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                this.handleBackClick();
+                              }}
+                            />
+                          )}
+                        </div>
+                        <div style={{ flexGrow: 1, textAlign: "center" }}>
+                          {isEmpty ? (
+                            <p>Drag and drop files here or Browse for files</p>
+                          ) : (
+                            this.renderFileList()
+                          )}
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
