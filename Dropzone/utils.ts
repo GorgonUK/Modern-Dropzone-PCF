@@ -1,3 +1,67 @@
+import { IInputs } from "./generated/ManifestTypes";
+import { EntityMetadata } from "./Interfaces";
+
+let ENTITY_METADATA: EntityMetadata | null = null;
+
+export async function getEntityMetadata(context: ComponentFramework.Context<IInputs>): Promise<EntityMetadata | null> {
+  if (ENTITY_METADATA) {
+    return ENTITY_METADATA;
+  }
+
+  if (!context || !(context as any).page) {
+    console.warn("Component Framework context is not available. (utils)");
+    return null;
+  }
+
+  const dynamicsUrl = (context as any).page.getClientUrl();
+  if (!dynamicsUrl) {
+    console.error("Unable to retrieve client URL.");
+    return null;
+  }
+
+  const entityName = (context as any).page.entityTypeName;
+  if (!entityName) {
+    console.error("Unable to retrieve entity type name.");
+    return null;
+  }
+  const apiUrl = `${dynamicsUrl}/api/data/v9.0/EntityDefinitions(LogicalName='${entityName}')?$select=SchemaName,LogicalCollectionName`;
+
+  const entityId = (context as any).page.entityId;
+  if (!entityId) {
+    console.error("Unable to retrieve entity ID.");
+    return null;
+  }
+
+  try {
+    const response = await fetch(apiUrl, {
+      headers: {
+        "OData-MaxVersion": "4.0",
+        "OData-Version": "4.0",
+        "Accept": "application/json",
+        "Content-Type": "application/json; charset=utf-8"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    ENTITY_METADATA = {
+      schemaName: data.SchemaName.toLowerCase(),
+      logicalCollectionName: data.LogicalCollectionName,
+      clientUrl: dynamicsUrl,
+      entityId: entityId
+    };
+    return ENTITY_METADATA;
+
+  } catch (error) {
+    console.error("Error fetching entity metadata:", error);
+    return null;
+  }
+}
+
+
 export function isPDF(mime: string) {
   return mime === 'application/pdf';
 }
