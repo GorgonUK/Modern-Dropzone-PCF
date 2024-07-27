@@ -1,4 +1,4 @@
-![Modern Dropzone](https://github.com/GorgonUK/Modern-Dropzone-PCF/assets/59618079/928aa6f4-3a4c-4a66-b8d6-340bd8094a2f)
+![Dropzone-main](https://github.com/user-attachments/assets/6c182dac-beed-4bfa-a700-3e5aeb618011)
 ![Dropzone-key-features](https://github.com/GorgonUK/Modern-Dropzone-PCF/assets/59618079/8ad3d457-328e-4563-adb5-01f1958b1c4a)
 
 
