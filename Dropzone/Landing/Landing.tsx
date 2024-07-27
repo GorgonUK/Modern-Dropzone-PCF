@@ -13,6 +13,7 @@ import {
   createSharePointDocument,
   deleteSharePointDocument,
   createSharePointFolder,
+  createSharePointLocation,
 } from "../DataverseActions";
 import { FileData, SharePointDocument, PreviewFile } from "../Interfaces";
 import { Img } from "react-image";
@@ -50,7 +51,11 @@ import {
   IIconProps,
   Callout,
   Label,
-  Separator,
+  HighContrastSelector,
+  DirectionalHint,
+  ComboBox,
+  IComboBox,
+  IComboBoxOption,
 } from "@fluentui/react";
 import {
   getFileTypeIconProps,
@@ -79,7 +84,11 @@ interface LandingState {
   isLoading: boolean;
   sharePointDocLoc: boolean;
   showTooltip: boolean;
-  documentLocations: { name: string; sharepointdocumentlocationid: string }[];
+  documentLocations: {
+    name: string;
+    sharepointdocumentlocationid: string;
+    parentsiteid?: string;
+  }[];
   selectedDocumentLocation: string | null;
   sharePointData: SharePointDocument[];
   currentFolderPath: string;
@@ -97,6 +106,12 @@ interface LandingState {
   sharePointEnabled: boolean;
   userPreference: boolean;
   isCalloutVisible: boolean;
+  isFolderDeletionDialogVisible: boolean;
+  isCreateLocationDialogVisible: boolean;
+  createLocationDisplayName: string;
+  selectedCreateLocation: string;
+  createLocationFolderName: string;
+  isSaveButtonEnabled: boolean;
 }
 
 type FileAction = "edit" | "download" | "duplicate" | "delete" | "preview";
@@ -114,7 +129,6 @@ const SharePointDocLocTooltip = (
     .
   </span>
 );
-const gearIcon: IIconProps = { iconName: "Settings" };
 const tooltipId = "sharePointDocLocTooltip";
 const buttonStyles: Partial<ITooltipHostStyles> = {
   root: {
@@ -171,6 +185,8 @@ async function loadExcelFile(documentbody: string): Promise<SheetData> {
 }
 
 export class Landing extends Component<LandingProps, LandingState> {
+  private targetRef: React.RefObject<HTMLDivElement>;
+
   constructor(props: LandingProps) {
     super(props);
     initializeFileTypeIcons();
@@ -202,6 +218,12 @@ export class Landing extends Component<LandingProps, LandingState> {
       sharePointEnabled: false,
       userPreference: false,
       isCalloutVisible: false,
+      isFolderDeletionDialogVisible: false,
+      isCreateLocationDialogVisible: false,
+      createLocationDisplayName: "",
+      selectedCreateLocation: "",
+      createLocationFolderName: "",
+      isSaveButtonEnabled: false,
     };
     this.removeFile = this.removeFile.bind(this);
     this.downloadFile = this.downloadFile.bind(this);
@@ -221,12 +243,127 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.onGearIconClick = this.onGearIconClick.bind(this);
     this.onCalloutDismiss = this.onCalloutDismiss.bind(this);
     this.toggleRememberLocation = this.toggleRememberLocation.bind(this);
+    this.handleRemoveFolderClick = this.handleRemoveFolderClick.bind(this);
+    this.targetRef = React.createRef();
   }
-  private onGearIconClick = (event: React.MouseEvent<HTMLElement>): void => {
-    this.setState({
-      isCalloutVisible: !this.state.isCalloutVisible,
-      target: event.currentTarget as HTMLElement,
+
+  handleRemoveFolderClick = (event: React.MouseEvent<HTMLElement>): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.toggleRemoveFolderDialog();
+  };
+
+  toggleRemoveFolderDialog = (): void => {
+    this.setState((prevState) => ({
+      isFolderDeletionDialogVisible: !prevState.isFolderDeletionDialogVisible,
+    }));
+  };
+
+  private handlecreateLocation = async () => {
+    const {
+      createLocationDisplayName,
+      createLocationFolderName,
+      selectedCreateLocation,
+    } = this.state;
+    const { context } = this.props;
+
+    const createLocationPromise = createSharePointLocation(
+      context!,
+      createLocationDisplayName,
+      createLocationFolderName,
+      selectedCreateLocation
+    );
+
+    toast.promise(createLocationPromise, {
+      loading: "Creating location...",
+      success: (res) => {
+        this.setState({ isCreateLocationDialogVisible: false });
+        const createdSPLocation: IDropdownOption = {
+          key: res,
+          text: createLocationDisplayName
+        };
+        this.handleDropdownChange({} as React.FormEvent<HTMLDivElement>, createdSPLocation);
+
+        this.setState((prevState) => ({
+          documentLocations: [
+            ...prevState.documentLocations,
+            { name: createLocationDisplayName, sharepointdocumentlocationid: res }
+          ],
+          selectedDocumentLocation: res,
+        }));
+
+        return `Location "${createLocationDisplayName}" created successfully!`;
+      },
+      error: "Error creating location",
     });
+  };
+
+  private handleInputChange = (
+    event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>,
+    newValue?: string
+  ) => {
+    const target = event.currentTarget;
+    const name = target.name as keyof LandingState;
+    const value = newValue ?? target.value;
+    this.setState(
+      (prevState) =>
+        ({
+          ...prevState,
+          [name]: value,
+        } as unknown as LandingState),
+      this.validateForm
+    );
+  };
+  private validateForm = (): void => {
+    const {
+      createLocationDisplayName,
+      selectedCreateLocation,
+      createLocationFolderName,
+    } = this.state;
+    const isSaveButtonEnabled =
+      createLocationDisplayName.trim() !== "" &&
+      selectedCreateLocation.trim() !== "" &&
+      createLocationFolderName.trim() !== "";
+    this.setState({ isSaveButtonEnabled });
+  };
+  private handleCreateLocationDropdownChange = (
+    event: React.FormEvent<IComboBox>,
+    option?: IComboBoxOption
+  ): void => {
+    if (option) {
+      console.log(option.key);
+      this.setState(
+        { selectedCreateLocation: option.key as string },
+        this.validateForm
+      );
+    }
+  };
+
+  private openCreateLocationDialog = (): void => {
+    this.setState({ isCreateLocationDialogVisible: true });
+  };
+
+  private closeCreateLocationDialog = (): void => {
+    this.setState({ isCreateLocationDialogVisible: false });
+  };
+  private targetElement: HTMLElement | null = null;
+  private onGearIconClick = (
+    ev?:
+      | React.MouseEvent<HTMLElement, MouseEvent>
+      | React.KeyboardEvent<HTMLElement>,
+    item?: IContextualMenuItem
+  ): boolean | void => {
+    if (ev && ev.currentTarget instanceof HTMLElement) {
+      this.targetElement = ev.currentTarget;
+      this.toggleCallout();
+    }
+  };
+
+  private toggleCallout = (): void => {
+    this.setState((prevState) => ({
+      isCalloutVisible: !prevState.isCalloutVisible,
+      target: this.targetElement,
+    }));
   };
   private onCalloutDismiss = (): void => {
     this.setState({ isCalloutVisible: false });
@@ -1139,6 +1276,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         />
       </Stack>
     );
+
     const menuItems: IContextualMenuItem[] = [
       {
         key: "download",
@@ -1317,9 +1455,15 @@ export class Landing extends Component<LandingProps, LandingState> {
   };
 
   renderFileList() {
-    const { sharePointDocLoc, selectedFiles, currentFolderPath } = this.state;
+    const {
+      sharePointDocLoc,
+      selectedFiles,
+      currentFolderPath,
+      isFolderDeletionDialogVisible,
+    } = this.state;
     const files = this.getFilteredAndSortedFiles();
     const sharePointData = this.getFilteredAndSortedSPFiles();
+
     if (sharePointDocLoc) {
       return (
         <div style={{ display: "flex", alignItems: "center" }}>
@@ -1371,9 +1515,41 @@ export class Landing extends Component<LandingProps, LandingState> {
                   }
                 }}
               >
-                <div className="file-image">
+                <div className="file-image" style={{ position: "relative" }}>
                   {file.filetype === "folder" ? (
-                    <FolderIcon />
+                    <>
+                      <FolderIcon />
+                      <IconButton
+                        className="remove-button"
+                        iconProps={{ iconName: "Cancel" }}
+                        title="Remove"
+                        ariaLabel="Remove"
+                        onClick={this.handleRemoveFolderClick}
+                      />
+                      <Dialog
+                        hidden={!isFolderDeletionDialogVisible}
+                        onDismiss={this.toggleRemoveFolderDialog}
+                        dialogContentProps={{
+                          type: DialogType.normal,
+                          title: "Remove Folder",
+                          subText: `Are you sure you want to delete folder "${file.fullname}"?`,
+                        }}
+                      >
+                        <DialogFooter>
+                          <PrimaryButton
+                            onClick={() => {
+                              this.removeFile(file.sharepointdocumentid);
+                              this.toggleRemoveFolderDialog();
+                            }}
+                            text="Yes"
+                          />
+                          <DefaultButton
+                            onClick={this.toggleRemoveFolderDialog}
+                            text="No"
+                          />
+                        </DialogFooter>
+                      </Dialog>
+                    </>
                   ) : (
                     <Icon
                       {...getFileTypeIconProps({
@@ -1475,8 +1651,12 @@ export class Landing extends Component<LandingProps, LandingState> {
       sharePointEnabled,
       currentFolderPath,
       isCalloutVisible,
-      target,
+      isCreateLocationDialogVisible,
       userPreference,
+      createLocationDisplayName,
+      selectedCreateLocation,
+      createLocationFolderName,
+      isSaveButtonEnabled,
     } = this.state;
 
     const dropdownOptions: IDropdownOption[] = documentLocations.map(
@@ -1485,7 +1665,45 @@ export class Landing extends Component<LandingProps, LandingState> {
         text: location.name,
       })
     );
+    const comboBoxOptions: IDropdownOption[] = documentLocations
+      .filter((location) => location.parentsiteid)
+      .map((location) => ({
+        key: location.parentsiteid!,
+        text: location.name,
+      }));
     const files = this.getFilteredAndSortedFiles();
+    const addIcon: IIconProps = { iconName: "Add" };
+    const splitButtonStyles: IButtonStyles = {
+      splitButtonMenuButton: {
+        backgroundColor: "white",
+        width: 28,
+        border: "none",
+      },
+      splitButtonMenuIcon: { fontSize: "7px" },
+      splitButtonDivider: {
+        backgroundColor: "#c8c8c8",
+        width: 1,
+        right: 26,
+        position: "absolute",
+        top: 4,
+        bottom: 4,
+      },
+      splitButtonContainer: {
+        selectors: {
+          [HighContrastSelector]: { border: "none" },
+        },
+      },
+    };
+    const menuProps: IContextualMenuProps = {
+      items: [
+        {
+          key: "settings",
+          iconProps: { iconName: "Settings" },
+          text: "Settings",
+          onClick: this.onGearIconClick,
+        }
+      ],
+    };
     const isEmpty = sharePointDocLoc
       ? sharePointData.length === 0
       : files.length === 0;
@@ -1515,6 +1733,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         </div>
       );
     }
+
     return (
       <>
         <Toaster position="top-right" reverseOrder={false} />
@@ -1703,6 +1922,7 @@ export class Landing extends Component<LandingProps, LandingState> {
               width: "100%",
               justifyContent: "space-between",
               alignItems: "center",
+              flexWrap: "wrap",
             }}
           >
             <Toggle
@@ -1722,8 +1942,9 @@ export class Landing extends Component<LandingProps, LandingState> {
             >
               {isCalloutVisible && (
                 <Callout
-                  target={target}
+                  target={this.targetRef.current}
                   onDismiss={this.onCalloutDismiss}
+                  directionalHint={DirectionalHint.bottomAutoEdge}
                   setInitialFocus
                   role="dialog"
                 >
@@ -1745,12 +1966,6 @@ export class Landing extends Component<LandingProps, LandingState> {
               )}
               {sharePointDocLoc && (
                 <>
-                  <IconButton
-                    iconProps={gearIcon}
-                    title="Settings"
-                    ariaLabel="Settings"
-                    onClick={this.onGearIconClick}
-                  />
                   <Dropdown
                     options={dropdownOptions}
                     disabled={false}
@@ -1758,8 +1973,67 @@ export class Landing extends Component<LandingProps, LandingState> {
                     onChange={this.handleDropdownChange}
                     selectedKey={selectedDocumentLocation}
                   />
+                  <div ref={this.targetRef}>
+                    <IconButton
+                      split
+                      iconProps={addIcon}
+                      splitButtonAriaLabel="Location options"
+                      aria-roledescription="Split button"
+                      styles={splitButtonStyles}
+                      menuProps={menuProps}
+                      ariaLabel="New item"
+                      onClick={this.openCreateLocationDialog}
+                    />
+                  </div>
                 </>
               )}
+              <Dialog
+                hidden={!isCreateLocationDialogVisible}
+                onDismiss={this.closeCreateLocationDialog}
+                dialogContentProps={{
+                  type: DialogType.normal,
+                  title: "Add Location",
+                }}
+              >
+                <Stack tokens={{ childrenGap: 20 }} padding={20}>
+                  <Label>
+                    Create a new document location in Microsoft Dynamics 365
+                  </Label>
+                  <TextField
+                    label="Display Name"
+                    required
+                    name="createLocationDisplayName"
+                    value={createLocationDisplayName}
+                    onChange={this.handleInputChange}
+                  />
+                  <Label>Create new folder at the specified parent site</Label>
+                  <ComboBox
+                    label="Parent Site"
+                    required
+                    selectedKey={selectedCreateLocation}
+                    options={comboBoxOptions}
+                    onChange={this.handleCreateLocationDropdownChange}
+                  />
+                  <TextField
+                    label="Folder Name"
+                    required
+                    name="createLocationFolderName"
+                    value={createLocationFolderName}
+                    onChange={this.handleInputChange}
+                  />
+                </Stack>
+                <DialogFooter>
+                  <PrimaryButton
+                    onClick={this.handlecreateLocation}
+                    text="Save"
+                    disabled={!isSaveButtonEnabled}
+                  />
+                  <DefaultButton
+                    onClick={this.closeCreateLocationDialog}
+                    text="Cancel"
+                  />
+                </DialogFooter>
+              </Dialog>
             </Stack>
           </Stack>
         </div>

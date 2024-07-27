@@ -1,12 +1,7 @@
 import { IInputs } from "./generated/ManifestTypes";
 import { EntityMetadata } from "./Interfaces";
 
-let ENTITY_METADATA: EntityMetadata | null = null;
-
 export async function getEntityMetadata(context: ComponentFramework.Context<IInputs>): Promise<EntityMetadata | null> {
-  if (ENTITY_METADATA) {
-    return ENTITY_METADATA;
-  }
 
   if (!context || !(context as any).page) {
     console.warn("Component Framework context is not available. (utils)");
@@ -47,13 +42,12 @@ export async function getEntityMetadata(context: ComponentFramework.Context<IInp
     }
 
     const data = await response.json();
-    ENTITY_METADATA = {
+    return {
       schemaName: data.SchemaName.toLowerCase(),
       logicalCollectionName: data.LogicalCollectionName,
       clientUrl: dynamicsUrl,
       entityId: entityId
     };
-    return ENTITY_METADATA;
 
   } catch (error) {
     console.error("Error fetching entity metadata:", error);

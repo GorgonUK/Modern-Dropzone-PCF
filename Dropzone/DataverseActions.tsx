@@ -130,6 +130,7 @@ export async function getSharePointLocations(context: ComponentFramework.Context
   <entity name="sharepointdocumentlocation">
     <attribute name="name" />
     <attribute name="sharepointdocumentlocationid" />
+    <attribute name="parentsiteorlocation" />
     <filter type="and">
       <condition attribute="regardingobjectid" operator="eq" value="${metadata.entityId}" />
       <condition attribute="statecode" operator="eq" value="0" />
@@ -166,10 +167,10 @@ export async function getSharePointLocations(context: ComponentFramework.Context
   }
 
   const data = await response.json();
-
   return data.value.map((item: any) => ({
     name: item.name,
-    sharepointdocumentlocationid: item.sharepointdocumentlocationid
+    sharepointdocumentlocationid: item.sharepointdocumentlocationid,
+    parentsiteid: item._parentsiteorlocation_value
   }));
 }
 
@@ -401,6 +402,94 @@ ${filters}
     author: item.author,
     filesize: item.filesize
   }));
+}
+
+async function getSiteUrl(
+  context: ComponentFramework.Context<IInputs>,
+  parentLocationId: string
+): Promise<string> {
+  const metadata = await getEntityMetadata(context);
+  const url = `${metadata?.clientUrl}/api/data/v9.0/FetchSiteUrl`;
+  const body = JSON.stringify({
+    "DocumentId": parentLocationId,
+    "ParentEntityReference": {
+        "@odata.type": `Microsoft.Dynamics.CRM.${metadata?.schemaName}`,
+        [`${metadata?.schemaName}id`]: `${metadata?.entityId}`
+    }
+});
+
+const fetchOptions = {
+  method: 'POST',
+  headers: {
+      'Content-Type': 'application/json'
+  },
+  body: body
+};
+try {
+  const response = await fetch(url, fetchOptions);
+  if (!response.ok) {
+    throw new Error('Error getting SharePoint site: ' + response.statusText);
+  }
+  const responseData = await response.json();
+  if (!responseData.SiteAndLocationUrl) {
+    throw new Error('SiteAndLocationUrl not found in response');
+  }
+  return responseData.SiteAndLocationUrl;
+} catch (error) {
+  console.error('Error getting SharePoint site: ', error);
+  throw error;
+}
+}
+
+export async function createSharePointLocation(
+  context: ComponentFramework.Context<IInputs>,
+  locationName: string,
+  relativePath: string,
+  parentLocationId: string,
+): Promise<string> {
+  const metadata = await getEntityMetadata(context);
+  const url = `${metadata?.clientUrl}/api/data/v9.0/AddOrEditLocation`;
+  const absUrl = await getSiteUrl(context, parentLocationId);
+  const body = JSON.stringify({
+    "AbsUrl": absUrl + "/" + locationName,
+    "DocumentId": "",
+    "IsAddOrEditMode": true,
+    "IsCreateFolder": true,
+    "LocationName": locationName,
+    "ParentEntityReference": {
+      "@odata.type": `Microsoft.Dynamics.CRM.${metadata?.schemaName}`,
+      [`${metadata?.schemaName}id`]: metadata?.entityId,
+    },
+    "ParentId": parentLocationId,
+    "ParentType": "sharepointdocumentlocation",
+    "RelativePath": relativePath
+  });
+
+  const fetchOptions = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'OData-Version': '4.0',
+      'OData-MaxVersion': '4.0',
+      'Accept': 'application/json',
+    },
+    body: body
+  };
+
+  try {
+    const response = await fetch(url, fetchOptions);
+    if (!response.ok) {
+      throw new Error('Failed to create a location: ' + response.statusText);
+    }
+    const responseData = await response.json();
+    if (!responseData.LocationId) {
+      throw new Error('LocationId not found in response');
+    }
+    return responseData.LocationId;
+  } catch (error) {
+    console.error('Error creating a location:', error);
+    throw error;
+  }
 }
 
 export async function createSharePointDocument(
