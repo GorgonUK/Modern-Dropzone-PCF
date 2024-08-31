@@ -14,9 +14,14 @@ import {
   deleteSharePointDocument,
   createSharePointFolder,
   createSharePointLocation,
-  createAtivityDocument
+  createAtivityDocument,
 } from "../DataverseActions";
-import { FileData, SharePointDocument, PreviewFile, GenericActionResponse } from "../Interfaces";
+import {
+  FileData,
+  SharePointDocument,
+  PreviewFile,
+  GenericActionResponse,
+} from "../Interfaces";
 import { Img } from "react-image";
 import {
   isPDF,
@@ -75,7 +80,7 @@ import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
 import toast, { Toaster } from "react-hot-toast";
 import FolderIcon from "./FolderIcon";
-import { getEntityMetadata } from "../utils";
+import { getEntityMetadata, getControlValue } from "../utils";
 
 export interface LandingProps {
   context?: ComponentFramework.Context<IInputs>;
@@ -120,9 +125,16 @@ interface LandingState {
   createLocationFolderName: string;
   isSaveButtonEnabled: boolean;
   isActivity: boolean;
+  sharePointEnabledParameter: boolean;
 }
 
-type FileAction = "edit" | "download" | "duplicate" | "delete" | "preview" | "addToActivityAttachment";
+type FileAction =
+  | "edit"
+  | "download"
+  | "duplicate"
+  | "delete"
+  | "preview"
+  | "addToActivityAttachment";
 
 const SharePointDocLocTooltip = (
   <span>
@@ -233,6 +245,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       createLocationFolderName: "",
       isSaveButtonEnabled: false,
       isActivity: false,
+      sharePointEnabledParameter: false,
     };
     this.removeFile = this.removeFile.bind(this);
     this.downloadFile = this.downloadFile.bind(this);
@@ -254,7 +267,8 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.toggleRememberLocation = this.toggleRememberLocation.bind(this);
     this.handleRemoveFolderClick = this.handleRemoveFolderClick.bind(this);
     this.isActivityType = this.isActivityType.bind(this);
-    this.addFileAttachmentToActivity = this.addFileAttachmentToActivity.bind(this);
+    this.addFileAttachmentToActivity =
+      this.addFileAttachmentToActivity.bind(this);
     this.targetRef = React.createRef();
   }
 
@@ -533,6 +547,10 @@ export class Landing extends Component<LandingProps, LandingState> {
     const userPreference = await this.checkUserSettings();
     const settings = await this.getUserSettings();
     const isActivity = await this.isActivityType();
+    let sharePointEnabledParameter =
+      getControlValue(this.props.context!, "enableSharePointDocuments") ===
+      "Yes";
+    this.setState({ sharePointEnabledParameter });
     if (
       settings &&
       settings.selectedDocumentLocation &&
@@ -549,7 +567,7 @@ export class Landing extends Component<LandingProps, LandingState> {
             {
               sharePointEnabled,
               userPreference,
-              isActivity
+              isActivity,
             },
             () => {
               this.loadExistingFiles().then(() => {
@@ -564,7 +582,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         {
           sharePointEnabled,
           userPreference,
-          isActivity
+          isActivity,
         },
         () => {
           this.loadExistingFiles().then(() => {
@@ -794,7 +812,7 @@ export class Landing extends Component<LandingProps, LandingState> {
   delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   addFileAttachmentToActivity = async (file: FileData | SharePointDocument) => {
-    console.log(file)
+    console.log(file);
     if (
       !("documentbody" in file) ||
       !file.documentbody ||
@@ -804,17 +822,17 @@ export class Landing extends Component<LandingProps, LandingState> {
       toast.error("Missing file data for attachment");
       return;
     }
-  
+
     try {
       toast.loading("Attaching file...");
-  
-      const response:GenericActionResponse = await createAtivityDocument(
+
+      const response: GenericActionResponse = await createAtivityDocument(
         this.props.context!,
         file.filename,
         file.documentbody,
         file.mimetype
       );
-  
+
       toast.dismiss();
       if (response.success) {
         toast.success(`${file.filename} attached successfully!`);
@@ -1291,7 +1309,8 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   renderRibbon = () => {
-    const { selectedFiles, sharePointDocLoc, isCollapsed, isActivity } = this.state;
+    const { selectedFiles, sharePointDocLoc, isCollapsed, isActivity } =
+      this.state;
     const commandButtons = (
       <Stack horizontal tokens={ribbonStackTokens}>
         {!sharePointDocLoc && selectedFiles.length < 2 && (
@@ -1727,6 +1746,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       selectedCreateLocation,
       createLocationFolderName,
       isSaveButtonEnabled,
+      sharePointEnabledParameter,
     } = this.state;
 
     const dropdownOptions: IDropdownOption[] = documentLocations.map(
@@ -1986,126 +2006,130 @@ export class Landing extends Component<LandingProps, LandingState> {
               </div>
             )}
           </Dropzone>
-          <Stack
-            horizontal
-            style={{
-              width: "100%",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <Toggle
-              label={<div>SharePoint Documents {docLoctooltip}</div>}
-              inlineLabel
-              onText="On"
-              offText="Off"
-              checked={sharePointDocLoc}
-              onChange={this.toggleSharePointDocLoc}
-              disabled={sharePointEnabled}
-              styles={{ root: { marginBottom: "0px" } }}
-            />
+          {sharePointEnabledParameter && (
             <Stack
               horizontal
-              verticalAlign="center"
-              tokens={{ childrenGap: 5 }}
+              style={{
+                width: "100%",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
             >
-              {isCalloutVisible && (
-                <Callout
-                  target={this.targetRef.current}
-                  onDismiss={this.onCalloutDismiss}
-                  directionalHint={DirectionalHint.bottomAutoEdge}
-                  setInitialFocus
-                  role="dialog"
-                >
-                  <Stack tokens={{ childrenGap: 10 }} padding={20}>
-                    <Stack
-                      horizontal
-                      verticalAlign="center"
-                      tokens={{ childrenGap: 10 }}
-                    >
-                      <Label>Remember Location?</Label>
-                      <Toggle
-                        onChange={this.toggleRememberLocation}
-                        styles={{ root: { marginBottom: "0px" } }}
-                        checked={userPreference}
-                      />
-                    </Stack>
-                  </Stack>
-                </Callout>
-              )}
-              {sharePointDocLoc && (
-                <>
-                  <Dropdown
-                    options={dropdownOptions}
-                    disabled={false}
-                    styles={dropdownStyles}
-                    onChange={this.handleDropdownChange}
-                    selectedKey={selectedDocumentLocation}
-                  />
-                  <div ref={this.targetRef}>
-                    <IconButton
-                      split
-                      iconProps={addIcon}
-                      splitButtonAriaLabel="Location options"
-                      aria-roledescription="Split button"
-                      styles={splitButtonStyles}
-                      menuProps={menuProps}
-                      ariaLabel="New item"
-                      onClick={this.openCreateLocationDialog}
-                    />
-                  </div>
-                </>
-              )}
-              <Dialog
-                hidden={!isCreateLocationDialogVisible}
-                onDismiss={this.closeCreateLocationDialog}
-                dialogContentProps={{
-                  type: DialogType.normal,
-                  title: "Add Location",
-                }}
+              <Toggle
+                label={<div>SharePoint Documents {docLoctooltip}</div>}
+                inlineLabel
+                onText="On"
+                offText="Off"
+                checked={sharePointDocLoc}
+                onChange={this.toggleSharePointDocLoc}
+                disabled={sharePointEnabled}
+                styles={{ root: { marginBottom: "0px" } }}
+              />
+              <Stack
+                horizontal
+                verticalAlign="center"
+                tokens={{ childrenGap: 5 }}
               >
-                <Stack tokens={{ childrenGap: 20 }} padding={20}>
-                  <Label>
-                    Create a new document location in Microsoft Dynamics 365
-                  </Label>
-                  <TextField
-                    label="Display Name"
-                    required
-                    name="createLocationDisplayName"
-                    value={createLocationDisplayName}
-                    onChange={this.handleInputChange}
-                  />
-                  <Label>Create new folder at the specified parent site</Label>
-                  <ComboBox
-                    label="Parent Site"
-                    required
-                    selectedKey={selectedCreateLocation}
-                    options={comboBoxOptions}
-                    onChange={this.handleCreateLocationDropdownChange}
-                  />
-                  <TextField
-                    label="Folder Name"
-                    required
-                    name="createLocationFolderName"
-                    value={createLocationFolderName}
-                    onChange={this.handleInputChange}
-                  />
-                </Stack>
-                <DialogFooter>
-                  <PrimaryButton
-                    onClick={this.handlecreateLocation}
-                    text="Save"
-                    disabled={!isSaveButtonEnabled}
-                  />
-                  <DefaultButton
-                    onClick={this.closeCreateLocationDialog}
-                    text="Cancel"
-                  />
-                </DialogFooter>
-              </Dialog>
+                {isCalloutVisible && (
+                  <Callout
+                    target={this.targetRef.current}
+                    onDismiss={this.onCalloutDismiss}
+                    directionalHint={DirectionalHint.bottomAutoEdge}
+                    setInitialFocus
+                    role="dialog"
+                  >
+                    <Stack tokens={{ childrenGap: 10 }} padding={20}>
+                      <Stack
+                        horizontal
+                        verticalAlign="center"
+                        tokens={{ childrenGap: 10 }}
+                      >
+                        <Label>Remember Location?</Label>
+                        <Toggle
+                          onChange={this.toggleRememberLocation}
+                          styles={{ root: { marginBottom: "0px" } }}
+                          checked={userPreference}
+                        />
+                      </Stack>
+                    </Stack>
+                  </Callout>
+                )}
+                {sharePointDocLoc && (
+                  <>
+                    <Dropdown
+                      options={dropdownOptions}
+                      disabled={false}
+                      styles={dropdownStyles}
+                      onChange={this.handleDropdownChange}
+                      selectedKey={selectedDocumentLocation}
+                    />
+                    <div ref={this.targetRef}>
+                      <IconButton
+                        split
+                        iconProps={addIcon}
+                        splitButtonAriaLabel="Location options"
+                        aria-roledescription="Split button"
+                        styles={splitButtonStyles}
+                        menuProps={menuProps}
+                        ariaLabel="New item"
+                        onClick={this.openCreateLocationDialog}
+                      />
+                    </div>
+                  </>
+                )}
+                <Dialog
+                  hidden={!isCreateLocationDialogVisible}
+                  onDismiss={this.closeCreateLocationDialog}
+                  dialogContentProps={{
+                    type: DialogType.normal,
+                    title: "Add Location",
+                  }}
+                >
+                  <Stack tokens={{ childrenGap: 20 }} padding={20}>
+                    <Label>
+                      Create a new document location in Microsoft Dynamics 365
+                    </Label>
+                    <TextField
+                      label="Display Name"
+                      required
+                      name="createLocationDisplayName"
+                      value={createLocationDisplayName}
+                      onChange={this.handleInputChange}
+                    />
+                    <Label>
+                      Create new folder at the specified parent site
+                    </Label>
+                    <ComboBox
+                      label="Parent Site"
+                      required
+                      selectedKey={selectedCreateLocation}
+                      options={comboBoxOptions}
+                      onChange={this.handleCreateLocationDropdownChange}
+                    />
+                    <TextField
+                      label="Folder Name"
+                      required
+                      name="createLocationFolderName"
+                      value={createLocationFolderName}
+                      onChange={this.handleInputChange}
+                    />
+                  </Stack>
+                  <DialogFooter>
+                    <PrimaryButton
+                      onClick={this.handlecreateLocation}
+                      text="Save"
+                      disabled={!isSaveButtonEnabled}
+                    />
+                    <DefaultButton
+                      onClick={this.closeCreateLocationDialog}
+                      text="Cancel"
+                    />
+                  </DialogFooter>
+                </Dialog>
+              </Stack>
             </Stack>
-          </Stack>
+          )}
         </div>
       </>
     );

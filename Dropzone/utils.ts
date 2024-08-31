@@ -99,3 +99,6 @@ export function isActivityType(schemaName: string): schemaName is ActivityType {
       "appointmentrecurrence"
   ].includes(schemaName);
 }
+export function getControlValue(context: ComponentFramework.Context<any>, parameter: string) {
+  return context.parameters[parameter]?.raw || "";
+}
