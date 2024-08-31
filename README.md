@@ -26,7 +26,7 @@ The component supports SharePoint Document Locations and comes pre-configured to
 
 4. **Search and Add Dropzone**
 
-   In the components marketplace, type "Dropzone" in the search box, select the component, and then press "Add":
+   In the components search, type "Dropzone" in the search box, select the component, and then press "Add":
    
    ![Select Dropzone](https://github.com/GorgonUK/DropzonePCF/assets/59618079/5e1c1298-bd50-4d0e-8b10-4110ebc5dc44)
 
@@ -39,5 +39,11 @@ The component supports SharePoint Document Locations and comes pre-configured to
    Drag the component to your desired location on the form. Note that the "table" and "view" selected during this step do not affect the component's functionality.
 
    ![Dropzone Component on Form](https://github.com/GorgonUK/Modern-Dropzone-PCF/assets/59618079/e9461aa3-fb3f-4170-a71c-7a96ef1ca421)
+
+6. **Configure the component**
+
+   Under "Enable SharePoint Documents?" type either Yes/No in the "static value" text input (If "No" then the SharePoint toggle is hidden):
+   
+   ![image](https://github.com/user-attachments/assets/fbcc9406-290e-4567-a677-63ede05a4bc6)
 
 For any issues or suggestions, use the "Issues" tab at the top of the page.
