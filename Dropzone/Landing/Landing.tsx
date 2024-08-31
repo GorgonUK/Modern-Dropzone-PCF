@@ -14,10 +14,17 @@ import {
   deleteSharePointDocument,
   createSharePointFolder,
   createSharePointLocation,
+  createAtivityDocument
 } from "../DataverseActions";
-import { FileData, SharePointDocument, PreviewFile } from "../Interfaces";
+import { FileData, SharePointDocument, PreviewFile, GenericActionResponse } from "../Interfaces";
 import { Img } from "react-image";
-import { isPDF, isImage, isExcel, createDataUri } from "../utils";
+import {
+  isPDF,
+  isImage,
+  isExcel,
+  createDataUri,
+  isActivityType,
+} from "../utils";
 import {
   IContextualMenuItem,
   DefaultButton,
@@ -112,9 +119,10 @@ interface LandingState {
   selectedCreateLocation: string;
   createLocationFolderName: string;
   isSaveButtonEnabled: boolean;
+  isActivity: boolean;
 }
 
-type FileAction = "edit" | "download" | "duplicate" | "delete" | "preview";
+type FileAction = "edit" | "download" | "duplicate" | "delete" | "preview" | "addToActivityAttachment";
 
 const SharePointDocLocTooltip = (
   <span>
@@ -224,6 +232,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       selectedCreateLocation: "",
       createLocationFolderName: "",
       isSaveButtonEnabled: false,
+      isActivity: false,
     };
     this.removeFile = this.removeFile.bind(this);
     this.downloadFile = this.downloadFile.bind(this);
@@ -244,6 +253,8 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.onCalloutDismiss = this.onCalloutDismiss.bind(this);
     this.toggleRememberLocation = this.toggleRememberLocation.bind(this);
     this.handleRemoveFolderClick = this.handleRemoveFolderClick.bind(this);
+    this.isActivityType = this.isActivityType.bind(this);
+    this.addFileAttachmentToActivity = this.addFileAttachmentToActivity.bind(this);
     this.targetRef = React.createRef();
   }
 
@@ -280,14 +291,20 @@ export class Landing extends Component<LandingProps, LandingState> {
         this.setState({ isCreateLocationDialogVisible: false });
         const createdSPLocation: IDropdownOption = {
           key: res,
-          text: createLocationDisplayName
+          text: createLocationDisplayName,
         };
-        this.handleDropdownChange({} as React.FormEvent<HTMLDivElement>, createdSPLocation);
+        this.handleDropdownChange(
+          {} as React.FormEvent<HTMLDivElement>,
+          createdSPLocation
+        );
 
         this.setState((prevState) => ({
           documentLocations: [
             ...prevState.documentLocations,
-            { name: createLocationDisplayName, sharepointdocumentlocationid: res }
+            {
+              name: createLocationDisplayName,
+              sharepointdocumentlocationid: res,
+            },
           ],
           selectedDocumentLocation: res,
         }));
@@ -473,6 +490,19 @@ export class Landing extends Component<LandingProps, LandingState> {
     );
   }
 
+  async isActivityType(): Promise<boolean> {
+    const metadata = await getEntityMetadata(this.props.context!);
+    if (!metadata) {
+      return false;
+    }
+    const isActivity = isActivityType(metadata.schemaName);
+    if (isActivity) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   async getUserSettings(): Promise<any> {
     const settings = localStorage.getItem("userSettings");
     return settings ? JSON.parse(settings) : null;
@@ -502,6 +532,7 @@ export class Landing extends Component<LandingProps, LandingState> {
     const sharePointEnabled = await this.checkSharePointIntegration();
     const userPreference = await this.checkUserSettings();
     const settings = await this.getUserSettings();
+    const isActivity = await this.isActivityType();
     if (
       settings &&
       settings.selectedDocumentLocation &&
@@ -518,6 +549,7 @@ export class Landing extends Component<LandingProps, LandingState> {
             {
               sharePointEnabled,
               userPreference,
+              isActivity
             },
             () => {
               this.loadExistingFiles().then(() => {
@@ -532,6 +564,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         {
           sharePointEnabled,
           userPreference,
+          isActivity
         },
         () => {
           this.loadExistingFiles().then(() => {
@@ -759,6 +792,40 @@ export class Landing extends Component<LandingProps, LandingState> {
   };
 
   delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  addFileAttachmentToActivity = async (file: FileData | SharePointDocument) => {
+    console.log(file)
+    if (
+      !("documentbody" in file) ||
+      !file.documentbody ||
+      !file.mimetype ||
+      !file.filename
+    ) {
+      toast.error("Missing file data for attachment");
+      return;
+    }
+  
+    try {
+      toast.loading("Attaching file...");
+  
+      const response:GenericActionResponse = await createAtivityDocument(
+        this.props.context!,
+        file.filename,
+        file.documentbody,
+        file.mimetype
+      );
+  
+      toast.dismiss();
+      if (response.success) {
+        toast.success(`${file.filename} attached successfully!`);
+      } else {
+        toast.error(response.message as string);
+      }
+    } catch (error) {
+      toast.dismiss();
+      toast.error(`Failed to attach file: ${(error as Error).message}`);
+    }
+  };
 
   downloadFile = async (file: FileData | SharePointDocument) => {
     if (!this.state.sharePointDocLoc) {
@@ -1049,6 +1116,9 @@ export class Landing extends Component<LandingProps, LandingState> {
       if (this.state.sharePointDocLoc && "sharepointdocumentid" in file) {
         // Actions for SharePoint documents
         switch (action) {
+          case "addToActivityAttachment":
+            this.addFileAttachmentToActivity(file);
+            break;
           case "download":
             this.downloadFile(file);
             break;
@@ -1221,7 +1291,7 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   renderRibbon = () => {
-    const { selectedFiles, sharePointDocLoc, isCollapsed } = this.state;
+    const { selectedFiles, sharePointDocLoc, isCollapsed, isActivity } = this.state;
     const commandButtons = (
       <Stack horizontal tokens={ribbonStackTokens}>
         {!sharePointDocLoc && selectedFiles.length < 2 && (
@@ -1701,7 +1771,7 @@ export class Landing extends Component<LandingProps, LandingState> {
           iconProps: { iconName: "Settings" },
           text: "Settings",
           onClick: this.onGearIconClick,
-        }
+        },
       ],
     };
     const isEmpty = sharePointDocLoc

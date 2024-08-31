@@ -51,3 +51,23 @@ export interface EntityMetadata {
   clientUrl: string;
   entityId: string;
 }
+
+export type ActivityType = 
+  | "email"
+  | "phonecall"
+  | "appointment"
+  | "task"
+  | "fax"
+  | "letter"
+  | "serviceappointment"
+  | "campaignresponse"
+  | "campaignactivity"
+  | "bulkoperation"
+  | "socialactivity"
+  | "recurringappointmentmaster"
+  | "appointmentrecurrence";
+
+export type GenericActionResponse = {
+    success: boolean;
+    message: string;
+  };

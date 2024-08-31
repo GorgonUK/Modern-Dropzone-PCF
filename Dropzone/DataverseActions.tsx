@@ -1,5 +1,6 @@
 import { IInputs } from "./generated/ManifestTypes";
-import { getEntityMetadata } from "./utils";
+import {GenericActionResponse} from "./Interfaces"
+import { getEntityMetadata, isActivityType } from "./utils";
 
 export async function createRelatedNote(
   context: ComponentFramework.Context<IInputs>,
@@ -184,6 +185,7 @@ export async function getSharePointData(
   if (!metadata) {
     return [];
   }
+  const isActivity = isActivityType(metadata.schemaName)
   let filters = '';
   let folderFilter = '';
   if (folderPath) {
@@ -233,9 +235,9 @@ export async function getSharePointData(
         <filter>
           <condition attribute="isrecursivefetch" operator="eq" value="0"/>
         </filter>
-        <link-entity name="${metadata.schemaName}" from="${metadata.schemaName}id" to="regardingobjectid" alias="bb">
+        <link-entity name="${metadata.schemaName}" from="${isActivity?"activity":metadata.schemaName}id" to="regardingobjectid" alias="bb">
           <filter type="and">
-            <condition attribute="${metadata.schemaName}id" operator="eq" uitype="${metadata.schemaName}" value="${metadata.entityId}"/>
+            <condition attribute="${isActivity?"activity":metadata.schemaName}id" operator="eq" uitype="${isActivity?"activity":metadata.schemaName}" value="${metadata.entityId}"/>
           </filter>
         </link-entity>
       </entity>
@@ -296,6 +298,7 @@ export async function getSharePointFolderData(context: ComponentFramework.Contex
   if (!metadata) {
     return [];
   }
+  const isActivity = isActivityType(metadata.schemaName);
   let folderFilter = '';
   let filters = '';
   if (folderPath) {
@@ -346,9 +349,9 @@ export async function getSharePointFolderData(context: ComponentFramework.Contex
         </filter>
 ${filters}
         <order attribute="relativelocation" descending="false"/>
-        <link-entity name="${metadata.schemaName}" from="${metadata.schemaName}id" to="regardingobjectid" alias="bb">
+        <link-entity name="${metadata.schemaName}" from="${isActivity?"activity":metadata.schemaName}id" to="regardingobjectid" alias="bb">
           <filter type="and">
-            <condition attribute="${metadata.schemaName}id" operator="eq" uitype="${metadata.schemaName}" value="${metadata.entityId}"/>
+            <condition attribute="${isActivity?"activity":metadata.schemaName}id" operator="eq" uitype="${isActivity?"activity":metadata.schemaName}" value="${metadata.entityId}"/>
           </filter>
         </link-entity>
       </entity>
@@ -500,6 +503,11 @@ export async function createSharePointDocument(
   locationId: string
 ): Promise<void> {
   const metadata = await getEntityMetadata(context);
+  console.log(metadata);
+  if(!metadata){
+    return
+  }
+  const isActivity = isActivityType(metadata.schemaName);
   const url = `${metadata?.clientUrl}/api/data/v9.0/UploadDocument`;
   const base64 = dataURL.split(',')[1];
   const body = JSON.stringify({
@@ -511,8 +519,8 @@ export async function createSharePointDocument(
       },
       "OverwriteExisting": true,
       "ParentEntityReference": {
-          "@odata.type": `Microsoft.Dynamics.CRM.${metadata?.schemaName}`,
-          [`${metadata?.schemaName}id`]: `${metadata?.entityId}`
+          "@odata.type": `Microsoft.Dynamics.CRM.${metadata.schemaName}`,
+          [`${isActivity?"activity":metadata.schemaName}id`]: `${metadata?.entityId}`
       },
       "FolderPath": `${folderPath}`
   });
@@ -544,6 +552,10 @@ export async function deleteSharePointDocument(
   locationId: string
 ): Promise<void> {
   const metadata = await getEntityMetadata(context);
+  if (!metadata) {
+    return;
+  }
+  const isActivity = isActivityType(metadata.schemaName);
   const url = `${metadata?.clientUrl}/api/data/v9.0/DeleteDocument`;
   const body = JSON.stringify({
     "Entities": [
@@ -557,7 +569,7 @@ export async function deleteSharePointDocument(
     ],
     "ParentEntityReference": {
       "@odata.type": `Microsoft.Dynamics.CRM.${metadata?.schemaName}`,
-      [`${metadata?.schemaName}id`]: `${metadata?.entityId}`
+      [`${isActivity?"activity":metadata.schemaName}id`]: `${metadata?.entityId}`
     }
   });
 
@@ -587,6 +599,10 @@ export async function createSharePointFolder(
   locationId: string
 ): Promise<void> {
   const metadata = await getEntityMetadata(context);
+  if(!metadata){
+    return
+  }
+  const isActivity = isActivityType(metadata.schemaName);
   const url = `${metadata?.clientUrl}/api/data/v9.0/NewDocument`;
   const body = JSON.stringify({
       "FileName": folderName,
@@ -595,7 +611,7 @@ export async function createSharePointFolder(
       "FolderPath": folderPath,
       "ParentEntityReference": {
           "@odata.type": `Microsoft.Dynamics.CRM.${metadata?.schemaName}`,
-          [`${metadata?.schemaName}id`]: `${metadata?.entityId}`
+          [`${isActivity?"activity":metadata.schemaName}id`]: `${metadata?.entityId}`
       }
   });
 
@@ -615,6 +631,35 @@ export async function createSharePointFolder(
   } catch (error) {
       console.error('Error creating a folder:', error);
       throw error;
+  }
+}
+
+export async function createAtivityDocument(
+  context: ComponentFramework.Context<IInputs>,
+  fileName: string,
+  base64: string,
+  mimeType: string
+): Promise<GenericActionResponse> {
+  const metadata = await getEntityMetadata(context);
+  if(!metadata){
+    return { success: false, message: `Unable to find entity metadata to create an activity document` };
+  }
+  const entity = "activitymimeattachment";
+  const objectId = `objectid_${metadata.schemaName}@odata.bind`;
+  const record = {
+    "filename": fileName,
+    "mimetype": mimeType,
+    "body": base64.split(',')[1],
+    [objectId]: `/${metadata?.logicalCollectionName}(${metadata.entityId})`,
+    "objecttypecode": metadata.schemaName
+  };
+
+  try {
+    await context.webAPI.createRecord(entity, record);
+    return { success: true, message: `${fileName} added to ${metadata.schemaName} attachments successfully`};
+  } catch (error) {
+    console.error("Error adding SharePoint document to activity:", error);
+    return { success: false, message: `Error adding SharePoint document to activity: ${(error as any).message}` };
   }
 }
 

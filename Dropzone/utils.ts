@@ -1,5 +1,6 @@
 import { IInputs } from "./generated/ManifestTypes";
 import { EntityMetadata } from "./Interfaces";
+import { ActivityType } from "./Interfaces";
 
 export async function getEntityMetadata(context: ComponentFramework.Context<IInputs>): Promise<EntityMetadata | null> {
 
@@ -79,4 +80,22 @@ export function isImage(mime: string) {
 
 export function createDataUri(mimetype: string, base64: string): string {
   return `data:${mimetype};base64,${base64}`;
+}
+
+export function isActivityType(schemaName: string): schemaName is ActivityType {
+  return [
+      "email",
+      "phonecall",
+      "appointment",
+      "task",
+      "fax",
+      "letter",
+      "serviceappointment",
+      "campaignresponse",
+      "campaignactivity",
+      "bulkoperation",
+      "socialactivity",
+      "recurringappointmentmaster",
+      "appointmentrecurrence"
+  ].includes(schemaName);
 }
