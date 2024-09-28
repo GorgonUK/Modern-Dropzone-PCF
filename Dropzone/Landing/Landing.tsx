@@ -29,6 +29,7 @@ import {
   isExcel,
   createDataUri,
   isActivityType,
+  focusSPDocumentsAndRestore
 } from "../utils";
 import {
   IContextualMenuItem,
@@ -68,6 +69,7 @@ import {
   ComboBox,
   IComboBox,
   IComboBoxOption,
+  IButtonProps,
 } from "@fluentui/react";
 import {
   getFileTypeIconProps,
@@ -116,7 +118,7 @@ interface LandingState {
   xlsxContent: string;
   xlsxData: SheetData | null;
   sharePointEnabled: boolean;
-  userPreference: boolean;
+  userPreference: boolean | undefined;
   isCalloutVisible: boolean;
   isFolderDeletionDialogVisible: boolean;
   isCreateLocationDialogVisible: boolean;
@@ -126,6 +128,7 @@ interface LandingState {
   isSaveButtonEnabled: boolean;
   isActivity: boolean;
   sharePointEnabledParameter: boolean;
+  selectedFolderForDelete: SharePointDocument | null;
 }
 
 type FileAction =
@@ -246,6 +249,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       isSaveButtonEnabled: false,
       isActivity: false,
       sharePointEnabledParameter: false,
+      selectedFolderForDelete: null,
     };
     this.removeFile = this.removeFile.bind(this);
     this.downloadFile = this.downloadFile.bind(this);
@@ -272,10 +276,14 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.targetRef = React.createRef();
   }
 
-  handleRemoveFolderClick = (event: React.MouseEvent<HTMLElement>): void => {
+  handleRemoveFolderClick = (event: any, file: SharePointDocument): void => {
+    console.log(file.title);
     event.preventDefault();
     event.stopPropagation();
-    this.toggleRemoveFolderDialog();
+
+    this.setState({ selectedFolderForDelete: file }, () => {
+      this.toggleRemoveFolderDialog();
+    });
   };
 
   toggleRemoveFolderDialog = (): void => {
@@ -462,19 +470,29 @@ export class Landing extends Component<LandingProps, LandingState> {
       const response = await getSharePointLocations(context!);
       const firstLocationId =
         response.length > 0 ? response[0].sharepointdocumentlocationid : "";
-      const firstLocationName = response.length > 0 ? response[0].name : "";
       this.setState((prevState) => ({
         documentLocations: response,
         selectedDocumentLocation:
           prevState.selectedDocumentLocation || firstLocationId,
         selectedDocumentLocationName:
-          prevState.selectedDocumentLocationName || firstLocationName,
+          prevState.selectedDocumentLocationName ||
+          (response.length > 0 ? response[0].name : ""),
       }));
     } catch (error) {
       console.error("Error fetching SharePoint document locations:", error);
     }
   }
 
+  private isDefaultLocation() {
+    if (
+      this.state.documentLocations.length === 1 &&
+      this.state.selectedDocumentLocationName === "Documents on Default Site 1"
+    ) {
+      return false;
+    } else {
+      return true;
+    }
+  }
   private async getSharePointData(
     popFolderStack: boolean = false
   ): Promise<void> {
@@ -493,11 +511,13 @@ export class Landing extends Component<LandingProps, LandingState> {
       },
       async () => {
         const { currentFolderPath } = this.state;
+        let defaultLocation = this.isDefaultLocation();
         const data = await getSharePointFolderData(
           this.props.context!,
           currentFolderPath,
           this.state.selectedDocumentLocation!,
-          this.state.selectedDocumentLocationName
+          this.state.selectedDocumentLocationName,
+          defaultLocation
         );
         this.setState({ sharePointData: data });
       }
@@ -522,13 +542,21 @@ export class Landing extends Component<LandingProps, LandingState> {
     return settings ? JSON.parse(settings) : null;
   }
 
-  async checkUserSettings(): Promise<boolean> {
+  async checkUserSettings(): Promise<boolean | undefined> {
     const settings = localStorage.getItem("userSettings");
+
     if (settings) {
       const parsedSettings = JSON.parse(settings);
       const metadata = await getEntityMetadata(this.props.context!);
+      if (parsedSettings.tableName !== metadata?.schemaName || parsedSettings.entityId !== metadata?.entityId) {
+        return undefined;
+      }
       if (parsedSettings.tableName === metadata?.schemaName) {
-        return parsedSettings.NotesOrSharePoint === true;
+        if (typeof parsedSettings.NotesOrSharePoint === "undefined") {
+          return parsedSettings.NotesOrSharePoint;
+        } else {
+          return undefined;
+        }
       } else {
         return false;
       }
@@ -543,6 +571,20 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   async componentDidMount() {
+    window.addEventListener('recordSavedEvent', async (event: any) => {
+      const passedEntityId = event.detail.entityId;
+      console.log('Entity ID from event:', passedEntityId);
+      const checkEntityId = async (): Promise<void> => {
+          const entityId = (this.props.context as any).page.entityId;
+          if (entityId && entityId === passedEntityId) {
+            focusSPDocumentsAndRestore();
+        } else {
+            await this.delay(500);
+            return checkEntityId();
+        }
+      };
+      await checkEntityId();
+  });
     const sharePointEnabled = await this.checkSharePointIntegration();
     const userPreference = await this.checkUserSettings();
     const settings = await this.getUserSettings();
@@ -555,7 +597,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       settings &&
       settings.selectedDocumentLocation &&
       settings.selectedDocumentLocationName &&
-      userPreference
+      (userPreference === undefined || sharePointEnabled == false)
     ) {
       this.setState(
         {
@@ -565,9 +607,10 @@ export class Landing extends Component<LandingProps, LandingState> {
         () => {
           this.setState(
             {
-              sharePointEnabled,
+              sharePointEnabled: sharePointEnabled,
               userPreference,
               isActivity,
+              sharePointDocLoc: true,
             },
             () => {
               this.loadExistingFiles().then(() => {
@@ -580,7 +623,7 @@ export class Landing extends Component<LandingProps, LandingState> {
     } else {
       this.setState(
         {
-          sharePointEnabled,
+          sharePointEnabled: sharePointEnabled,
           userPreference,
           isActivity,
         },
@@ -591,8 +634,11 @@ export class Landing extends Component<LandingProps, LandingState> {
         }
       );
     }
+
     window.addEventListener("resize", this.handleResize);
+  
   }
+
   componentDidUpdate(prevProps: LandingProps, prevState: LandingState) {
     if (
       this.state.previewFile !== prevState.previewFile &&
@@ -729,12 +775,22 @@ export class Landing extends Component<LandingProps, LandingState> {
         const reader = new FileReader();
         reader.onload = () => {
           const binaryStr = reader.result as string;
+          let defaultLocation;
+          if (
+            this.state.documentLocations.length == 1 &&
+            this.state.selectedDocumentLocationName ==
+              "Documents on Default Site 1"
+          ) {
+            defaultLocation = "";
+          } else {
+            defaultLocation = this.state.selectedDocumentLocation!;
+          }
           const uploadPromise = createSharePointDocument(
             this.props.context!,
             file.name,
             binaryStr,
             this.state.currentFolderPath,
-            this.state.selectedDocumentLocation!
+            defaultLocation
           );
 
           toast.promise(uploadPromise, {
@@ -976,14 +1032,15 @@ export class Landing extends Component<LandingProps, LandingState> {
         toast.error("SharePoint document not found.");
         return;
       }
-
+      let defaultLocation = this.isDefaultLocation();
       toast.promise(
         deleteSharePointDocument(
           this.props.context!,
           file.sharepointdocumentid,
           file.documentid,
           file.filetype,
-          this.state.selectedDocumentLocation!
+          this.state.selectedDocumentLocation!,
+          defaultLocation
         ),
         {
           loading: "Deleting SharePoint document...",
@@ -1092,12 +1149,13 @@ export class Landing extends Component<LandingProps, LandingState> {
       toast.error("Folder name cannot be empty.");
       return;
     }
-
+    let defaultLocation = this.isDefaultLocation();
     const folderCreationPromise = createSharePointFolder(
       context!,
       newFolderName,
       currentFolderPath,
-      this.state.selectedDocumentLocation!
+      this.state.selectedDocumentLocation!,
+      defaultLocation
     );
 
     toast.promise(folderCreationPromise, {
@@ -1256,8 +1314,10 @@ export class Landing extends Component<LandingProps, LandingState> {
   };
   getFilteredAndSortedFiles() {
     const { files, notesSearchText } = this.state;
-    return files.filter((file) =>
-      file.filename.toLowerCase().includes(notesSearchText.toLowerCase())
+    return files.filter(
+      (file) =>
+        file.filename &&
+        file.filename.toLowerCase().includes(notesSearchText.toLowerCase())
     );
   }
 
@@ -1549,6 +1609,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       selectedFiles,
       currentFolderPath,
       isFolderDeletionDialogVisible,
+      selectedFolderForDelete,
     } = this.state;
     const files = this.getFilteredAndSortedFiles();
     const sharePointData = this.getFilteredAndSortedSPFiles();
@@ -1613,7 +1674,9 @@ export class Landing extends Component<LandingProps, LandingState> {
                         iconProps={{ iconName: "Cancel" }}
                         title="Remove"
                         ariaLabel="Remove"
-                        onClick={this.handleRemoveFolderClick}
+                        onClick={(event) =>
+                          this.handleRemoveFolderClick(event, file)
+                        }
                       />
                       <Dialog
                         hidden={!isFolderDeletionDialogVisible}
@@ -1621,13 +1684,15 @@ export class Landing extends Component<LandingProps, LandingState> {
                         dialogContentProps={{
                           type: DialogType.normal,
                           title: "Remove Folder",
-                          subText: `Are you sure you want to delete folder "${file.fullname}"?`,
+                          subText: `Are you sure you want to delete folder "${selectedFolderForDelete?.fullname}"?`,
                         }}
                       >
                         <DialogFooter>
                           <PrimaryButton
                             onClick={() => {
-                              this.removeFile(file.sharepointdocumentid);
+                              this.removeFile(
+                                selectedFolderForDelete?.sharepointdocumentid
+                              );
                               this.toggleRemoveFolderDialog();
                             }}
                             text="Yes"

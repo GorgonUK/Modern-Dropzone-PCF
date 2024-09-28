@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest>
-  <control namespace="GK" constructor="Dropzone" version="0.0.43" display-name-key="Dropzone" description-key="Dropzone description" control-type="virtual">
+  <control namespace="GK" constructor="Dropzone" version="0.0.46" display-name-key="Dropzone" description-key="Dropzone description" control-type="virtual">
     <data-set name="sampleDataSet" display-name-key="Dataset_Display_Key">
     </data-set>
     <property name="enableSharePointDocuments" display-name-key="Enable SharePoint Documents?" description-key="Simply provide Yes/No" of-type="SingleLine.Text" usage="input" required="true" />
