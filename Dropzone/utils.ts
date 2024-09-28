@@ -2,8 +2,9 @@ import { IInputs } from "./generated/ManifestTypes";
 import { EntityMetadata } from "./Interfaces";
 import { ActivityType } from "./Interfaces";
 
-export async function getEntityMetadata(context: ComponentFramework.Context<IInputs>): Promise<EntityMetadata | null> {
-
+export async function getEntityMetadata(
+  context: ComponentFramework.Context<IInputs>
+): Promise<EntityMetadata | null> {
   if (!context || !(context as any).page) {
     console.warn("Component Framework context is not available. (utils)");
     return null;
@@ -33,9 +34,9 @@ export async function getEntityMetadata(context: ComponentFramework.Context<IInp
       headers: {
         "OData-MaxVersion": "4.0",
         "OData-Version": "4.0",
-        "Accept": "application/json",
-        "Content-Type": "application/json; charset=utf-8"
-      }
+        Accept: "application/json",
+        "Content-Type": "application/json; charset=utf-8",
+      },
     });
 
     if (!response.ok) {
@@ -47,35 +48,36 @@ export async function getEntityMetadata(context: ComponentFramework.Context<IInp
       schemaName: data.SchemaName.toLowerCase(),
       logicalCollectionName: data.LogicalCollectionName,
       clientUrl: dynamicsUrl,
-      entityId: entityId
+      entityId: entityId,
     };
-
   } catch (error) {
     console.error("Error fetching entity metadata:", error);
     return null;
   }
 }
 
-
 export function isPDF(mime: string) {
-  return mime === 'application/pdf';
+  return mime === "application/pdf";
 }
 
 export function isExcel(mime: string) {
-  return mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-         mime === 'application/vnd.ms-excel' ||
-         mime === 'text/csv';
+  return (
+    mime ===
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mime === "application/vnd.ms-excel" ||
+    mime === "text/csv"
+  );
 }
 
 export function isImage(mime: string) {
-  const base64Prefix = 'data:image/';
+  const base64Prefix = "data:image/";
   if (mime.startsWith(base64Prefix)) {
     const parts = mime.split(base64Prefix);
     if (parts.length > 2) {
       mime = base64Prefix + parts[1];
     }
   }
-  return mime.startsWith('image/');
+  return mime.startsWith("image/");
 }
 
 export function createDataUri(mimetype: string, base64: string): string {
@@ -84,21 +86,52 @@ export function createDataUri(mimetype: string, base64: string): string {
 
 export function isActivityType(schemaName: string): schemaName is ActivityType {
   return [
-      "email",
-      "phonecall",
-      "appointment",
-      "task",
-      "fax",
-      "letter",
-      "serviceappointment",
-      "campaignresponse",
-      "campaignactivity",
-      "bulkoperation",
-      "socialactivity",
-      "recurringappointmentmaster",
-      "appointmentrecurrence"
+    "email",
+    "phonecall",
+    "appointment",
+    "task",
+    "fax",
+    "letter",
+    "serviceappointment",
+    "campaignresponse",
+    "campaignactivity",
+    "bulkoperation",
+    "socialactivity",
+    "recurringappointmentmaster",
+    "appointmentrecurrence",
   ].includes(schemaName);
 }
-export function getControlValue(context: ComponentFramework.Context<any>, parameter: string) {
+export function getControlValue(
+  context: ComponentFramework.Context<any>,
+  parameter: string
+) {
   return context.parameters[parameter]?.raw || "";
+}
+
+export function focusSPDocumentsAndRestore() {
+  const originalTab = getFocusedTab();
+  const navItem = Xrm.Page.ui.navigation.items.get("navSPDocuments");
+
+  if (navItem) {
+    navItem.setFocus();
+    setTimeout(function () {
+      if (originalTab) {
+        originalTab.setFocus();
+        window.location.reload();
+      }
+    }, 1000);
+  } else {
+    console.log("SP Documents navigation item not found.");
+  }
+}
+
+function getFocusedTab() {
+  const tabs = Xrm.Page.ui.tabs;
+
+  if (tabs.getLength() > 0) {
+    const firstTab = tabs.get(0);
+    return firstTab;
+  } else {
+    return null;
+  }
 }

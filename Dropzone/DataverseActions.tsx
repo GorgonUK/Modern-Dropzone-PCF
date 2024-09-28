@@ -127,21 +127,26 @@ export async function getSharePointLocations(context: ComponentFramework.Context
     return [];
   }
   const fetchXml = `
-  <fetch mapping="logical" version="1.0">
+  <fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
   <entity name="sharepointdocumentlocation">
+    <attribute name="statecode" />
     <attribute name="name" />
     <attribute name="sharepointdocumentlocationid" />
+    <attribute name="servicetype" />
     <attribute name="parentsiteorlocation" />
+    <order attribute="modifiedon" descending="true" />
     <filter type="and">
-      <condition attribute="regardingobjectid" operator="eq" value="${metadata.entityId}" />
-      <condition attribute="statecode" operator="eq" value="0" />
       <condition attribute="statuscode" operator="eq" value="1" />
-      <condition attribute="sitecollectionid" operator="not-null" />
-      <condition attribute="absoluteurl" operator="null" />
+      <condition attribute="statecode" operator="eq" value="0" />
     </filter>
-    <filter type="or">
+    <filter type="and">
       <filter type="and">
-        <condition attribute="servicetype" operator="eq" value="0" />
+        <condition attribute="regardingobjectid" operator="eq" value="${metadata.entityId}" />
+      </filter>
+      <filter type="and">
+        <condition attribute="servicetype" operator="in">
+          <value>0</value>
+        </condition>
       </filter>
     </filter>
   </entity>
@@ -166,15 +171,13 @@ export async function getSharePointLocations(context: ComponentFramework.Context
   if (!response.ok) {
     throw new Error(`Error fetching SharePoint document locations: ${response.statusText}`);
   }
-
-  const data = await response.json();
+let data = await response.json();
   return data.value.map((item: any) => ({
     name: item.name,
     sharepointdocumentlocationid: item.sharepointdocumentlocationid,
     parentsiteid: item._parentsiteorlocation_value
   }));
 }
-
 export async function getSharePointData(
   context: ComponentFramework.Context<IInputs>,
   selectedDocumentLocation?:string,
@@ -293,7 +296,7 @@ export async function getSharePointData(
   }));
 }
 
-export async function getSharePointFolderData(context: ComponentFramework.Context<IInputs>,folderPath?: string,selectedDocumentLocation?:string,selectedDocumentLocationName?:string): Promise<any[]> {
+export async function getSharePointFolderData(context: ComponentFramework.Context<IInputs>,folderPath?: string,selectedDocumentLocation?:string,selectedDocumentLocationName?:string,defaultSite?:boolean): Promise<any[]> {
   const metadata = await getEntityMetadata(context);
   if (!metadata) {
     return [];
@@ -308,6 +311,7 @@ export async function getSharePointFolderData(context: ComponentFramework.Contex
       </filter>`;
   }
   if(selectedDocumentLocation){
+    if(defaultSite){
   filters = `
       <filter type="and">
          <filter type="and">
@@ -321,6 +325,10 @@ export async function getSharePointFolderData(context: ComponentFramework.Contex
          </filter>
          ${folderFilter}
       </filter>`
+    }
+    else{
+     filters = `${folderFilter}`
+    }
   }
   const fetchXml = `
     <fetch distinct="false" mapping="logical" returntotalrecordcount="true" no-lock="false">
@@ -457,7 +465,7 @@ export async function createSharePointLocation(
     "AbsUrl": absUrl + "/" + locationName,
     "DocumentId": "",
     "IsAddOrEditMode": true,
-    "IsCreateFolder": true,
+    "IsCreateFolder": false,
     "LocationName": locationName,
     "ParentEntityReference": {
       "@odata.type": `Microsoft.Dynamics.CRM.${metadata?.schemaName}`,
@@ -503,7 +511,6 @@ export async function createSharePointDocument(
   locationId: string
 ): Promise<void> {
   const metadata = await getEntityMetadata(context);
-  console.log(metadata);
   if(!metadata){
     return
   }
@@ -549,11 +556,16 @@ export async function deleteSharePointDocument(
   sharepointDocumentId: string,
   documentId: number,
   fileType: string,
-  locationId: string
+  rawlocationId: string,
+  isDefaultLocation: boolean
 ): Promise<void> {
   const metadata = await getEntityMetadata(context);
   if (!metadata) {
     return;
+  }
+  let locationId = rawlocationId;
+  if(!isDefaultLocation){
+    locationId = "00000000-0000-0000-0000-000000000000";
   }
   const isActivity = isActivityType(metadata.schemaName);
   const url = `${metadata?.clientUrl}/api/data/v9.0/DeleteDocument`;
@@ -596,12 +608,19 @@ export async function createSharePointFolder(
   context: ComponentFramework.Context<IInputs>,
   folderName: string,
   folderPath: string,
-  locationId: string
+  rawlocationId: string,
+  isDefaultLocation: boolean
 ): Promise<void> {
   const metadata = await getEntityMetadata(context);
   if(!metadata){
     return
   }
+
+  let locationId = rawlocationId;
+  if(!isDefaultLocation){
+    locationId = "00000000-0000-0000-0000-000000000000";
+  }
+  
   const isActivity = isActivityType(metadata.schemaName);
   const url = `${metadata?.clientUrl}/api/data/v9.0/NewDocument`;
   const body = JSON.stringify({
