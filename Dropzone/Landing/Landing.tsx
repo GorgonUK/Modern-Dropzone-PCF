@@ -29,7 +29,7 @@ import {
   isExcel,
   createDataUri,
   isActivityType,
-  focusSPDocumentsAndRestore
+  focusSPDocumentsAndRestore,
 } from "../utils";
 import {
   IContextualMenuItem,
@@ -76,8 +76,6 @@ import {
   initializeFileTypeIcons,
 } from "@uifabric/file-type-icons";
 import { read, utils } from "xlsx";
-import Spreadsheet from "x-data-spreadsheet";
-import "x-data-spreadsheet/dist/xspreadsheet.css";
 import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
 import toast, { Toaster } from "react-hot-toast";
@@ -548,7 +546,10 @@ export class Landing extends Component<LandingProps, LandingState> {
     if (settings) {
       const parsedSettings = JSON.parse(settings);
       const metadata = await getEntityMetadata(this.props.context!);
-      if (parsedSettings.tableName !== metadata?.schemaName || parsedSettings.entityId !== metadata?.entityId) {
+      if (
+        parsedSettings.tableName !== metadata?.schemaName ||
+        parsedSettings.entityId !== metadata?.entityId
+      ) {
         return undefined;
       }
       if (parsedSettings.tableName === metadata?.schemaName) {
@@ -571,20 +572,21 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   async componentDidMount() {
-    window.addEventListener('recordSavedEvent', async (event: any) => {
+    window.addEventListener("recordSavedEvent", async (event: any) => {
       const passedEntityId = event.detail.entityId;
-      console.log('Entity ID from event:', passedEntityId);
       const checkEntityId = async (): Promise<void> => {
-          const entityId = (this.props.context as any).page.entityId;
-          if (entityId && entityId === passedEntityId) {
+        const entityId = (this.props.context as any).page.entityId;
+        if (entityId && entityId === passedEntityId) {
+          if (this.state.sharePointEnabledParameter == true) {
             focusSPDocumentsAndRestore();
+          }
         } else {
-            await this.delay(500);
-            return checkEntityId();
+          await this.delay(500);
+          return checkEntityId();
         }
       };
       await checkEntityId();
-  });
+    });
     const sharePointEnabled = await this.checkSharePointIntegration();
     const userPreference = await this.checkUserSettings();
     const settings = await this.getUserSettings();
@@ -597,7 +599,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       settings &&
       settings.selectedDocumentLocation &&
       settings.selectedDocumentLocationName &&
-      (userPreference === undefined || sharePointEnabled == false)
+      (sharePointEnabledParameter == true || sharePointEnabled == false)
     ) {
       this.setState(
         {
@@ -636,57 +638,8 @@ export class Landing extends Component<LandingProps, LandingState> {
     }
 
     window.addEventListener("resize", this.handleResize);
+  }
   
-  }
-
-  componentDidUpdate(prevProps: LandingProps, prevState: LandingState) {
-    if (
-      this.state.previewFile !== prevState.previewFile &&
-      this.state.previewFile &&
-      isExcel(this.state.previewFile.mimetype)
-    ) {
-      const excelFile = this.state.previewFile.documentbody.replace(
-        /(data:.*?;base64,).*?\1/,
-        "$1"
-      );
-      loadExcelFile(excelFile).then((data) => {
-        this.setState({ xlsxData: data });
-        this.initializeSpreadsheet(data);
-      });
-    }
-  }
-  initializeSpreadsheet(data: SheetData) {
-    const spreadsheet = new Spreadsheet("#xlsx-preview", {
-      view: {
-        height: () => document.documentElement.clientHeight - 40,
-        width: () => document.documentElement.clientWidth - 60,
-      },
-      showToolbar: true,
-      showGrid: true,
-      showContextmenu: true,
-    });
-    const sheets = Object.keys(data).map((sheetName, index) => {
-      const rows = data[sheetName].map((row: any, rowIndex: number) => {
-        const cells = row.map((cell: any, colIndex: number) => ({
-          text: cell,
-          editable: false,
-          className: "readonly",
-        }));
-        return {
-          cells,
-          height: 20,
-        };
-      });
-      return {
-        name: sheetName,
-        rows,
-        cols: data[sheetName][0].map((_: any, colIndex: number) => ({
-          width: 100,
-        })),
-      };
-    });
-    spreadsheet.loadData(sheets);
-  }
   componentWillUnmount() {
     window.removeEventListener("resize", this.handleResize);
   }

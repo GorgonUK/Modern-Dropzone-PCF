@@ -29,7 +29,6 @@
     "react-tippy": "^1.4.0",
     "url": "^0.11.3",
     "util": "^0.12.5",
-    "x-data-spreadsheet": "^1.1.9",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz"
   },
   "devDependencies": {

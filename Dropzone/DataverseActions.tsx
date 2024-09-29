@@ -465,7 +465,7 @@ export async function createSharePointLocation(
     "AbsUrl": absUrl + "/" + locationName,
     "DocumentId": "",
     "IsAddOrEditMode": true,
-    "IsCreateFolder": false,
+    "IsCreateFolder": true,
     "LocationName": locationName,
     "ParentEntityReference": {
       "@odata.type": `Microsoft.Dynamics.CRM.${metadata?.schemaName}`,

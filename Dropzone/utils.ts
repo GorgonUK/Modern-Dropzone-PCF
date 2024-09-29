@@ -107,13 +107,17 @@ export function getControlValue(
 ) {
   return context.parameters[parameter]?.raw || "";
 }
+const delay = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
 
-export function focusSPDocumentsAndRestore() {
+export async function focusSPDocumentsAndRestore() {
   const originalTab = getFocusedTab();
   const navItem = Xrm.Page.ui.navigation.items.get("navSPDocuments");
-
+  
   if (navItem) {
     navItem.setFocus();
+    await delay(1000);
     setTimeout(function () {
       if (originalTab) {
         originalTab.setFocus();
@@ -121,7 +125,7 @@ export function focusSPDocumentsAndRestore() {
       }
     }, 1000);
   } else {
-    console.log("SP Documents navigation item not found.");
+    console.error("SP Documents navigation item not found.");
   }
 }
 
