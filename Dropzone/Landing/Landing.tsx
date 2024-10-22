@@ -7,7 +7,6 @@ import {
   getRelatedNotes,
   updateRelatedNote,
   deleteRelatedNote,
-  duplicateRelatedNote,
   getSharePointLocations,
   getSharePointFolderData,
   createSharePointDocument,
@@ -132,7 +131,6 @@ interface LandingState {
 type FileAction =
   | "edit"
   | "download"
-  | "duplicate"
   | "delete"
   | "preview"
   | "addToActivityAttachment";
@@ -639,7 +637,7 @@ export class Landing extends Component<LandingProps, LandingState> {
 
     window.addEventListener("resize", this.handleResize);
   }
-  
+
   componentWillUnmount() {
     window.removeEventListener("resize", this.handleResize);
   }
@@ -928,20 +926,6 @@ export class Landing extends Component<LandingProps, LandingState> {
     }
   };
 
-  duplicateFile = async (noteId: string) => {
-    const { context } = this.props;
-
-    const duplicationPromise = duplicateRelatedNote(context!, noteId);
-    toast.promise(duplicationPromise, {
-      loading: "Duplicating file...",
-      success: (response) => {
-        this.loadExistingFiles();
-        return `File duplicated successfully!`;
-      },
-      error: (err) => `Failed to duplicate file: ${err.message}`,
-    });
-  };
-
   removeFile = async (fileId?: string) => {
     if (!fileId) {
       console.error("No file ID provided for deletion");
@@ -1162,9 +1146,6 @@ export class Landing extends Component<LandingProps, LandingState> {
       } else if (!this.state.sharePointDocLoc && "noteId" in file) {
         // Actions for notes
         switch (action) {
-          case "duplicate":
-            this.duplicateFile(file.noteId!);
-            break;
           case "download":
             this.downloadFile(file);
             break;
@@ -1337,9 +1318,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                 !this.state.files.some(
                   (file) =>
                     selectedFiles.includes(file.noteId!) &&
-                    (isImage(file.mimetype!) ||
-                      isPDF(file.mimetype!) ||
-                      isExcel(file.mimetype!))
+                    (isImage(file.mimetype!) || isPDF(file.mimetype!))
                 )
               }
               className="icon-button"
@@ -1360,15 +1339,6 @@ export class Landing extends Component<LandingProps, LandingState> {
           disabled={selectedFiles.length === 0}
           className="icon-button"
         />
-        {!sharePointDocLoc && (
-          <CommandButton
-            iconProps={{ iconName: "Copy" }}
-            text="Duplicate"
-            onClick={() => this.performActionOnSelectedFiles("duplicate")}
-            disabled={selectedFiles.length === 0}
-            className="icon-button"
-          />
-        )}
         <CommandButton
           iconProps={{ iconName: "Delete" }}
           text="Delete"
@@ -1408,9 +1378,7 @@ export class Landing extends Component<LandingProps, LandingState> {
             !this.state.files.some(
               (file) =>
                 selectedFiles.includes(file.noteId!) &&
-                (isImage(file.mimetype!) ||
-                  isPDF(file.mimetype!) ||
-                  isExcel(file.mimetype!))
+                (isImage(file.mimetype!) || isPDF(file.mimetype!))
             ),
         },
         {
@@ -1419,13 +1387,6 @@ export class Landing extends Component<LandingProps, LandingState> {
           iconProps: { iconName: "Edit" },
           onClick: () => this.performActionOnSelectedFiles("edit"),
           disabled: selectedFiles.length === 0 || selectedFiles.length >= 2,
-        },
-        {
-          key: "duplicate",
-          text: "Duplicate",
-          iconProps: { iconName: "Copy" },
-          onClick: () => this.performActionOnSelectedFiles("duplicate"),
-          disabled: selectedFiles.length === 0,
         }
       );
     }
@@ -1880,9 +1841,6 @@ export class Landing extends Component<LandingProps, LandingState> {
                     <a href={previewFile.documentbody}>Download the PDF</a>.
                   </p>
                 </object>
-              )}
-              {isExcel(previewFile.mimetype) && (
-                <div id="xlsx-preview" style={{ height: "100%" }}></div>
               )}
               {isImage(previewFile.mimetype) && (
                 <Img

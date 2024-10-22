@@ -15,7 +15,7 @@ export class Dropzone
     state: ComponentFramework.Dictionary,
     container: HTMLDivElement
   ): void {
-    console.log("2.5");
+    console.log("2.6");
     this.theContainer = container;
 
     if (typeof Xrm !== "undefined") {
