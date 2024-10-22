@@ -90,37 +90,6 @@ export async function updateRelatedNote(
   }
 }
 
-export async function duplicateRelatedNote(
-  context: ComponentFramework.Context<IInputs>,
-  noteId: string
-) {
-  const entity = "annotation";
-  const metadata = await getEntityMetadata(context);
-  if (!metadata) {
-    return { success: false, message: "Failed to retrieve entity metadata" };
-  }
-  const objectId = `objectid_${metadata.schemaName}@odata.bind`;
-  try {
-    const originalNote = await context.webAPI.retrieveRecord(entity, noteId);
-    const newNoteData = {
-      "isdocument": originalNote.isdocument,
-      "filename": originalNote.filename,
-      "subject": originalNote.subject,
-      "notetext": originalNote.notetext,
-      "filesize": originalNote.filesize,
-      "mimetype": originalNote.mimetype,
-      "documentbody": originalNote.documentbody,
-      [objectId]: `/${metadata.logicalCollectionName}(${metadata.entityId})`
-    };
-
-    const creationResult = await context.webAPI.createRecord(entity, newNoteData);
-    return { success: true, message: "Note duplicated successfully", newNoteId: creationResult.id };
-  } catch (error) {
-    console.error("Error duplicating note:", error);
-    return { success: false, message: `Error duplicating note: ${(error as any).message}` };
-  }
-}
-
 export async function getSharePointLocations(context: ComponentFramework.Context<IInputs>): Promise<{ name: string, sharepointdocumentlocationid:string }[]> {
   const metadata = await getEntityMetadata(context);
   if (!metadata) {
