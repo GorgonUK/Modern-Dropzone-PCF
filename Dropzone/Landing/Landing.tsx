@@ -126,6 +126,7 @@ interface LandingState {
   isActivity: boolean;
   sharePointEnabledParameter: boolean;
   selectedFolderForDelete: SharePointDocument | null;
+  formType: number;
 }
 
 type FileAction =
@@ -246,6 +247,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       isActivity: false,
       sharePointEnabledParameter: false,
       selectedFolderForDelete: null,
+      formType: 0,
     };
     this.removeFile = this.removeFile.bind(this);
     this.downloadFile = this.downloadFile.bind(this);
@@ -273,7 +275,7 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   handleRemoveFolderClick = (event: any, file: SharePointDocument): void => {
-    console.log(file.title);
+    //console.log(file.title);
     event.preventDefault();
     event.stopPropagation();
 
@@ -570,7 +572,27 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   async componentDidMount() {
+    var formType = Xrm.Page.ui.getFormType();
+    this.setState({ formType }, () => console.log(formType));
+
+    // Onsave handler, works well with Active and Deactive ribbon buttons
+    Xrm.Page.data.entity.addOnSave(() => {
+      const interval = 500;
+      const duration = 5000;
+      const endTime = Date.now() + duration;
+
+      const intervalId = setInterval(() => {
+        const formType = Xrm.Page.ui.getFormType();
+        this.setState({ formType });
+
+        if (Date.now() >= endTime) {
+          clearInterval(intervalId);
+        }
+      }, interval);
+    });
+
     window.addEventListener("recordSavedEvent", async (event: any) => {
+      console.log("save event");
       const passedEntityId = event.detail.entityId;
       const checkEntityId = async (): Promise<void> => {
         const entityId = (this.props.context as any).page.entityId;
@@ -579,7 +601,7 @@ export class Landing extends Component<LandingProps, LandingState> {
             focusSPDocumentsAndRestore();
           }
         } else {
-          await this.delay(500);
+          await this.delay(2000);
           return checkEntityId();
         }
       };
@@ -670,6 +692,9 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   handleDrop = (acceptedFiles: File[]) => {
+    if (this.state.formType !== 2) {
+      return;
+    }
     if (!this.state.sharePointDocLoc) {
       acceptedFiles.forEach((file) => {
         const reader = new FileReader();
@@ -1303,8 +1328,9 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   renderRibbon = () => {
-    const { selectedFiles, sharePointDocLoc, isCollapsed, isActivity } =
+    const { selectedFiles, sharePointDocLoc, isCollapsed, formType } =
       this.state;
+    const formIsDisabled = formType !== 2;
     const commandButtons = (
       <Stack horizontal tokens={ribbonStackTokens}>
         {!sharePointDocLoc && selectedFiles.length < 2 && (
@@ -1343,7 +1369,7 @@ export class Landing extends Component<LandingProps, LandingState> {
           iconProps={{ iconName: "Delete" }}
           text="Delete"
           onClick={() => this.performActionOnSelectedFiles("delete")}
-          disabled={selectedFiles.length === 0}
+          disabled={selectedFiles.length === 0 || formIsDisabled}
           className="icon-button"
         />
       </Stack>
@@ -1362,7 +1388,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         text: "Delete",
         iconProps: { iconName: "Delete" },
         onClick: () => this.performActionOnSelectedFiles("delete"),
-        disabled: selectedFiles.length === 0,
+        disabled: selectedFiles.length === 0 || formIsDisabled,
       },
     ];
 
@@ -1386,7 +1412,10 @@ export class Landing extends Component<LandingProps, LandingState> {
           text: "Rename",
           iconProps: { iconName: "Edit" },
           onClick: () => this.performActionOnSelectedFiles("edit"),
-          disabled: selectedFiles.length === 0 || selectedFiles.length >= 2,
+          disabled:
+            selectedFiles.length === 0 ||
+            selectedFiles.length >= 2 ||
+            formIsDisabled,
         }
       );
     }
@@ -1466,15 +1495,17 @@ export class Landing extends Component<LandingProps, LandingState> {
                 </>
               </Stack>
             )}
-            {selectedFiles.length < 1 && sharePointDocLoc === true && (
-              <CommandButton
-                iconProps={{ iconName: "folder" }}
-                text="Create Folder"
-                onClick={() => this.toggleModal()}
-                disabled={selectedFiles.length > 0}
-                className="icon-button"
-              />
-            )}
+            {selectedFiles.length < 1 &&
+              sharePointDocLoc === true &&
+              !formIsDisabled && (
+                <CommandButton
+                  iconProps={{ iconName: "folder" }}
+                  text="Create Folder"
+                  onClick={() => this.toggleModal()}
+                  disabled={selectedFiles.length > 0}
+                  className="icon-button"
+                />
+              )}
           </Stack>
         </Stack>
       </>
@@ -1524,9 +1555,11 @@ export class Landing extends Component<LandingProps, LandingState> {
       currentFolderPath,
       isFolderDeletionDialogVisible,
       selectedFolderForDelete,
+      formType,
     } = this.state;
     const files = this.getFilteredAndSortedFiles();
     const sharePointData = this.getFilteredAndSortedSPFiles();
+    const formIsDisabled = formType !== 2;
 
     if (sharePointDocLoc) {
       return (
@@ -1583,15 +1616,17 @@ export class Landing extends Component<LandingProps, LandingState> {
                   {file.filetype === "folder" ? (
                     <>
                       <FolderIcon />
-                      <IconButton
-                        className="remove-button"
-                        iconProps={{ iconName: "Cancel" }}
-                        title="Remove"
-                        ariaLabel="Remove"
-                        onClick={(event) =>
-                          this.handleRemoveFolderClick(event, file)
-                        }
-                      />
+                      {!formIsDisabled && (
+                        <IconButton
+                          className="remove-button"
+                          iconProps={{ iconName: "Cancel" }}
+                          title="Remove"
+                          ariaLabel="Remove"
+                          onClick={(event) =>
+                            this.handleRemoveFolderClick(event, file)
+                          }
+                        />
+                      )}
                       <Dialog
                         hidden={!isFolderDeletionDialogVisible}
                         onDismiss={this.toggleRemoveFolderDialog}
@@ -1726,7 +1761,10 @@ export class Landing extends Component<LandingProps, LandingState> {
       createLocationFolderName,
       isSaveButtonEnabled,
       sharePointEnabledParameter,
+      formType,
     } = this.state;
+
+    const formIsDisabled = formType !== 2;
 
     const dropdownOptions: IDropdownOption[] = documentLocations.map(
       (location) => ({
@@ -1932,7 +1970,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         <div className="ribbon-dropzone-wrapper">
           {this.renderRibbon()}
 
-          <Dropzone onDrop={this.handleDrop}>
+          <Dropzone onDrop={this.handleDrop} disabled={formIsDisabled}>
             {({ getRootProps, getInputProps }) => (
               <div className="dropzone-wrapper">
                 <div
@@ -2040,18 +2078,20 @@ export class Landing extends Component<LandingProps, LandingState> {
                       onChange={this.handleDropdownChange}
                       selectedKey={selectedDocumentLocation}
                     />
-                    <div ref={this.targetRef}>
-                      <IconButton
-                        split
-                        iconProps={addIcon}
-                        splitButtonAriaLabel="Location options"
-                        aria-roledescription="Split button"
-                        styles={splitButtonStyles}
-                        menuProps={menuProps}
-                        ariaLabel="New item"
-                        onClick={this.openCreateLocationDialog}
-                      />
-                    </div>
+                    {!formIsDisabled && (
+                      <div ref={this.targetRef}>
+                        <IconButton
+                          split
+                          iconProps={addIcon}
+                          splitButtonAriaLabel="Location options"
+                          aria-roledescription="Split button"
+                          styles={splitButtonStyles}
+                          menuProps={menuProps}
+                          ariaLabel="New item"
+                          onClick={this.openCreateLocationDialog}
+                        />
+                      </div>
+                    )}
                   </>
                 )}
                 <Dialog
