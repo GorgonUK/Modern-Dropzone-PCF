@@ -368,7 +368,7 @@ export class Landing extends Component<LandingProps, LandingState> {
     option?: IComboBoxOption
   ): void => {
     if (option) {
-      console.log(option.key);
+      //console.log(option.key);
       this.setState(
         { selectedCreateLocation: option.key as string },
         this.validateForm
@@ -573,7 +573,7 @@ export class Landing extends Component<LandingProps, LandingState> {
 
   async componentDidMount() {
     var formType = Xrm.Page.ui.getFormType();
-    this.setState({ formType }, () => console.log(formType));
+    this.setState({ formType });
 
     // Onsave handler, works well with Active and Deactive ribbon buttons
     Xrm.Page.data.entity.addOnSave(() => {
@@ -592,7 +592,7 @@ export class Landing extends Component<LandingProps, LandingState> {
     });
 
     window.addEventListener("recordSavedEvent", async (event: any) => {
-      console.log("save event");
+      //console.log("save event");
       const passedEntityId = event.detail.entityId;
       const checkEntityId = async (): Promise<void> => {
         const entityId = (this.props.context as any).page.entityId;
@@ -613,13 +613,14 @@ export class Landing extends Component<LandingProps, LandingState> {
     const isActivity = await this.isActivityType();
     let sharePointEnabledParameter =
       getControlValue(this.props.context!, "enableSharePointDocuments") ===
-      "Yes";
+      true;
     this.setState({ sharePointEnabledParameter });
+
     if (
       settings &&
       settings.selectedDocumentLocation &&
       settings.selectedDocumentLocationName &&
-      (sharePointEnabledParameter == true || sharePointEnabled == false)
+      (sharePointEnabledParameter === true || sharePointEnabled == false)
     ) {
       this.setState(
         {
@@ -695,7 +696,13 @@ export class Landing extends Component<LandingProps, LandingState> {
     if (this.state.formType !== 2) {
       return;
     }
-    if (!this.state.sharePointDocLoc) {
+    let allowNoteDropsParameter =
+      getControlValue(this.props.context!, "allowNoteDrops") === true;
+
+    let allowSharePointDropsParameter =
+      getControlValue(this.props.context!, "allowSharePointDrops") === true;
+
+    if (!this.state.sharePointDocLoc && allowNoteDropsParameter) {
       acceptedFiles.forEach((file) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -746,7 +753,7 @@ export class Landing extends Component<LandingProps, LandingState> {
 
         reader.readAsDataURL(file);
       });
-    } else {
+    } else if (allowSharePointDropsParameter) {
       acceptedFiles.forEach((file) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -844,7 +851,7 @@ export class Landing extends Component<LandingProps, LandingState> {
   delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   addFileAttachmentToActivity = async (file: FileData | SharePointDocument) => {
-    console.log(file);
+    //console.log(file);
     if (
       !("documentbody" in file) ||
       !file.documentbody ||
