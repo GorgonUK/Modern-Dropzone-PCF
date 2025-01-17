@@ -15,23 +15,29 @@ export class Dropzone
     state: ComponentFramework.Dictionary,
     container: HTMLDivElement
   ): void {
-    console.log("2.7");
+    console.log("Dropzone PCF 2.8 Initialised");
     this.theContainer = container;
-
-    if (typeof Xrm !== "undefined") {
-      this.previousFormType = Xrm.Page.ui.getFormType() as number;
-      const formContext = Xrm?.Page;
-      if (formContext) {
-        formContext.data.entity.addOnSave(this.checkFormTypeChange);
-      }
-    } else {
-      console.error(
-        "Xrm is not defined. Ensure this is run within a Dynamics 365 form."
-      );
-    }
     this.notifyOutputChanged = notifyOutputChanged;
     this.webAPI = context.webAPI;
+  
+    const xrmCheckInterval = setInterval(() => {
+      if (typeof Xrm !== "undefined") {
+        clearInterval(xrmCheckInterval);
+  
+        this.previousFormType = Xrm.Page.ui.getFormType() as number;
+        const formContext = Xrm?.Page;
+  
+        if (formContext) {
+          formContext.data.entity.addOnSave(this.checkFormTypeChange);
+        }
+      } 
+    }, 500);
+  
+    setTimeout(() => {
+      clearInterval(xrmCheckInterval);
+    }, 10000);
   }
+
   private checkFormTypeChange = (): void => {
     const formType = Xrm?.Page.ui.getFormType();
     if (formType !== 1) return;
