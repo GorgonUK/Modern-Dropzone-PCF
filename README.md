@@ -47,3 +47,33 @@ The component supports SharePoint Document Locations and comes pre-configured to
    ![image](https://github.com/user-attachments/assets/fbcc9406-290e-4567-a677-63ede05a4bc6)
 
 For any issues or suggestions, use the "Issues" tab at the top of the page.
+
+## Q: Why can’t my users see files in the drop zone?  
+**A:** Make sure users have `Read` access to the Notes (Annotation) table. Files uploaded via the drop zone are stored there.
+
+---
+
+## Q: System Administrators can see the files. Why not everyone else?  
+**A:** System Administrators have access to all records by default. Other users need proper permissions for both the parent table (Requests) and Notes.
+
+---
+
+## Q: Do drop zone files follow the same permissions as the parent record?  
+**A:** Yes, files inherit permissions from the parent record. Ensure the parent record’s access is configured correctly.
+
+---
+
+## Q: How can I check if the files are properly saved?  
+**A:** Enable auditing on the Notes (Annotation) table to verify file creation and association.
+
+---
+
+## Q: Why does the drop zone show unrelated documents, and the subgrid display a throttling error?  
+**A:** The drop zone is not currently designed to handle document libraries with over 5000 items. This limitation may cause unexpected behavior, such as displaying unrelated documents. A future improvement will address this issue.
+
+---
+
+## Q: How can I disable the drop zone for notes or SharePoint?  
+**A:** You can disable drops directly in the edit form menu. Edit the component and set the boolean values for `enableNoteDrops` or `enableSharePointDrops` to `False`. By default, both options are set to `True`, but you can turn them off as needed.
+
+---
