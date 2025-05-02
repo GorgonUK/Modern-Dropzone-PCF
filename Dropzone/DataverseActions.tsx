@@ -1,5 +1,5 @@
 import { IInputs } from "./generated/ManifestTypes";
-import {GenericActionResponse} from "./Interfaces"
+import {GenericActionResponse, NoteView} from "./Interfaces"
 import { getEntityMetadata, isActivityType } from "./utils";
 
 export async function createRelatedNote(
@@ -89,6 +89,39 @@ export async function updateRelatedNote(
     };
   }
 }
+
+
+export async function getNoteViews(
+  context: ComponentFramework.Context<IInputs>
+): Promise<{ success: boolean; message?: string; data: any[] }> {
+  try {
+    const select = "$select=savedqueryid,name,fetchxml";
+    const filter = "$filter=returnedtypecode eq 'annotation' and fetchxml ne null";
+
+    const res = await context.webAPI.retrieveMultipleRecords(
+      "savedquery",
+      `?${select}&${filter}`
+    );
+
+    const views: NoteView[] = res.entities.map((e: any) => ({
+      savedqueryid: e.savedqueryid,
+      name:         e.name,
+      fetchxml:     e.fetchxml
+    }));
+
+    return { success: true, data: views };
+
+  } catch (err: any) {
+    console.error("Error fetching note views:", err);
+    return {
+      success: false,
+      message: `Error fetching note views: ${err.message}`,
+      data: []
+    };
+  }
+}
+
+
 
 export async function getSharePointLocations(context: ComponentFramework.Context<IInputs>): Promise<{ name: string, sharepointdocumentlocationid:string }[]> {
   const metadata = await getEntityMetadata(context);
@@ -265,7 +298,7 @@ export async function getSharePointData(
   }));
 }
 
-export async function getSharePointFolderData(context: ComponentFramework.Context<IInputs>,folderPath?: string,selectedDocumentLocation?:string,selectedDocumentLocationName?:string,defaultSite?:boolean): Promise<any[]> {
+export async function getSharePointFolderData(context: ComponentFramework.Context<IInputs>,folderPath?: string,selectedDocumentLocation?:string|null,selectedDocumentLocationName?:string,defaultSite?:boolean): Promise<any[]> {
   const metadata = await getEntityMetadata(context);
   if (!metadata) {
     return [];
@@ -442,7 +475,7 @@ export async function createSharePointLocation(
     },
     "ParentId": parentLocationId,
     "ParentType": "sharepointdocumentlocation",
-    "RelativePath": relativePath
+    "RelativePath": locationName
   });
 
   const fetchOptions = {

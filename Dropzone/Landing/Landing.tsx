@@ -14,18 +14,19 @@ import {
   createSharePointFolder,
   createSharePointLocation,
   createAtivityDocument,
+  getNoteViews
 } from "../DataverseActions";
 import {
   FileData,
   SharePointDocument,
   PreviewFile,
   GenericActionResponse,
+  NoteView,
 } from "../Interfaces";
 import { Img } from "react-image";
 import {
   isPDF,
   isImage,
-  isExcel,
   createDataUri,
   isActivityType,
   focusSPDocumentsAndRestore,
@@ -83,9 +84,13 @@ import { getEntityMetadata, getControlValue } from "../utils";
 
 export interface LandingProps {
   context?: ComponentFramework.Context<IInputs>;
+  isDisabled: boolean;
 }
 
 interface LandingState {
+  noteViews: NoteView[];
+  selectedViewId?: string;
+  isViewsLoading: boolean;
   files: FileData[];
   editingFileId?: string;
   selectedFiles: string[];
@@ -160,7 +165,7 @@ const buttonStyles: Partial<ITooltipHostStyles> = {
   },
 };
 const dropdownStyles: Partial<IDropdownStyles> = {
-  dropdown: { width: 300 },
+  dropdown: { width: 200 },
 };
 const ribbonStyles: IStackStyles = {
   root: {
@@ -191,27 +196,25 @@ const isValidBase64 = (str: string) => {
 
 const ribbonStackTokens: IStackTokens = { childrenGap: 10 };
 
-async function loadExcelFile(documentbody: string): Promise<SheetData> {
-  const buffer = await fetch(documentbody).then((res) => res.arrayBuffer());
-  const workbook = read(buffer, { type: "array" });
-  const sheetsData: SheetData = {};
-
-  workbook.SheetNames.forEach((sheetName) => {
-    const worksheet = workbook.Sheets[sheetName];
-    sheetsData[sheetName] = utils.sheet_to_json(worksheet, { header: 1 });
-  });
-
-  return sheetsData;
-}
+const EXCLUDED_NOTE_VIEWS = new Set<string>([
+  "Notes Associated View",
+  "Notes",
+  "Notes Advanced Find View",
+  "Notes Lookup View",
+  "Quick Find Annotations",
+]);
 
 export class Landing extends Component<LandingProps, LandingState> {
   private targetRef: React.RefObject<HTMLDivElement>;
-
+  private viewFetchXml: string | null = null;
   constructor(props: LandingProps) {
     super(props);
     initializeFileTypeIcons();
     this.state = {
       files: [],
+      noteViews: [],
+      selectedViewId: undefined,
+      isViewsLoading: false,
       editingFileId: undefined,
       selectedFiles: [],
       spSearchText: "",
@@ -272,10 +275,10 @@ export class Landing extends Component<LandingProps, LandingState> {
     this.addFileAttachmentToActivity =
       this.addFileAttachmentToActivity.bind(this);
     this.targetRef = React.createRef();
+    this.handleViewChange = this.handleViewChange.bind(this);
   }
 
   handleRemoveFolderClick = (event: any, file: SharePointDocument): void => {
-    //console.log(file.title);
     event.preventDefault();
     event.stopPropagation();
 
@@ -463,22 +466,25 @@ export class Landing extends Component<LandingProps, LandingState> {
   };
 
   private async getSharePointLocations(): Promise<void> {
-    const { context } = this.props;
-    try {
-      const response = await getSharePointLocations(context!);
-      const firstLocationId =
-        response.length > 0 ? response[0].sharepointdocumentlocationid : "";
-      this.setState((prevState) => ({
-        documentLocations: response,
-        selectedDocumentLocation:
-          prevState.selectedDocumentLocation || firstLocationId,
-        selectedDocumentLocationName:
-          prevState.selectedDocumentLocationName ||
-          (response.length > 0 ? response[0].name : ""),
-      }));
-    } catch (error) {
-      console.error("Error fetching SharePoint document locations:", error);
+    const response = await getSharePointLocations(this.props.context!);
+  
+    if (response.length === 0) {
+      this.setState({
+        documentLocations: [],
+        selectedDocumentLocation: null,
+        selectedDocumentLocationName: "",
+        sharePointData: [],
+        currentFolderPath: "",
+        folderStack: [],
+      });
+      return;
     }
+  
+    this.setState({
+      documentLocations: response,
+      selectedDocumentLocation: response[0].sharepointdocumentlocationid,
+      selectedDocumentLocationName: response[0].name,
+    });
   }
 
   private isDefaultLocation() {
@@ -491,29 +497,27 @@ export class Landing extends Component<LandingProps, LandingState> {
       return true;
     }
   }
-  private async getSharePointData(
-    popFolderStack: boolean = false
-  ): Promise<void> {
+  private async getSharePointData(popFolderStack = false): Promise<void> {
+    if (!this.state.selectedDocumentLocation) {
+      this.setState({ sharePointData: [], isLoading: false });
+      return;
+    }
+  
     this.setState(
-      (prevState) => {
-        const folderStack = [...prevState.folderStack];
-        let currentFolderPath: string;
-
-        if (popFolderStack) {
-          currentFolderPath = folderStack.pop() || "";
-        } else {
-          currentFolderPath = prevState.currentFolderPath || "";
-        }
-
+      prev => {
+        const folderStack = [...prev.folderStack];
+        const currentFolderPath = popFolderStack
+          ? folderStack.pop() || ""
+          : prev.currentFolderPath || "";
         return { folderStack, currentFolderPath };
       },
       async () => {
         const { currentFolderPath } = this.state;
-        let defaultLocation = this.isDefaultLocation();
+        const defaultLocation = this.isDefaultLocation();
         const data = await getSharePointFolderData(
           this.props.context!,
           currentFolderPath,
-          this.state.selectedDocumentLocation!,
+          this.state.selectedDocumentLocation,
           this.state.selectedDocumentLocationName,
           defaultLocation
         );
@@ -571,7 +575,49 @@ export class Landing extends Component<LandingProps, LandingState> {
     return response.length === 0 ? true : false;
   }
 
+ 
+
   async componentDidMount() {
+    this.setState({ isViewsLoading: true });
+  
+    const defaultNotesViewName =
+      (getControlValue(this.props.context!, "defaultNotesView") as string) ?? ""
+        .trim();
+  
+    try {
+      const res = await getNoteViews(this.props.context!);
+  
+      if (res.success) {
+
+        const availableViews = res.data.filter(
+          (v) => !EXCLUDED_NOTE_VIEWS.has(v.name)
+        );
+
+        const findByName = (name: string) =>
+          availableViews.find(
+            (v) => v.name.toLowerCase() === name.toLowerCase()
+          );
+
+        const defaultView =
+          (defaultNotesViewName && findByName(defaultNotesViewName)) ||
+          findByName("All Notes") ||
+          availableViews[0];
+  
+        this.setState({
+          noteViews: availableViews,
+          selectedViewId: defaultView?.savedqueryid,
+          isViewsLoading: false,
+        });
+      } else {
+        console.warn(res.message);
+        this.setState({ isViewsLoading: false });
+      }
+    } catch (err) {
+      console.error("Failed to load note views:", err);
+      this.setState({ isViewsLoading: false });
+    }
+  
+
     var formType = Xrm.Page.ui.getFormType();
     this.setState({ formType });
 
@@ -661,6 +707,24 @@ export class Landing extends Component<LandingProps, LandingState> {
     window.addEventListener("resize", this.handleResize);
   }
 
+  componentDidUpdate(prevProps: LandingProps) {
+    const prevId = (prevProps.context as any).page.entityId;
+    const currId = (this.props.context as any).page.entityId;
+  
+    if (prevId !== currId) {
+      this.setState({
+        files: [],
+        sharePointData: [],
+        currentFolderPath: "",
+        folderStack: [],
+        selectedFiles: [],
+        isLoading: true,
+      }, () => {
+        this.loadExistingFiles().then(() => this.setState({ isLoading: false }));
+      });
+    }
+  }
+
   componentWillUnmount() {
     window.removeEventListener("resize", this.handleResize);
   }
@@ -692,7 +756,7 @@ export class Landing extends Component<LandingProps, LandingState> {
     return extension ? extension : "txt";
   }
 
-  handleDrop = (acceptedFiles: File[]) => {
+  handleDrop = async (acceptedFiles: File[]) => {
     if (this.state.formType !== 2) {
       return;
     }
@@ -743,8 +807,9 @@ export class Landing extends Component<LandingProps, LandingState> {
                 throw new Error("Note ID was not returned");
               }
             },
+            
             error: "Error uploading file",
-          });
+          }).then(() => this.loadExistingFiles());
         };
 
         reader.onerror = () => {
@@ -806,47 +871,86 @@ export class Landing extends Component<LandingProps, LandingState> {
     }
   };
 
-  loadExistingFiles = async () => {
-    if (!this.props.context) {
-      console.error("Component Framework context is not available.");
-      return;
+  addRegardingFilter(fetchXml: string, recordId: string): string {
+    const newCond =
+      `<condition attribute="objectid" operator="eq" value="${recordId}"/>`;
+  
+    if (fetchXml.match(/<filter[^>]*>/i)) {
+      return fetchXml.replace(/(<filter[^>]*>)/i, `$1${newCond}`);
     }
-    this.setState({ isLoading: true });
 
+    const wrapper =
+      `<filter type="and">${newCond}</filter>`;
+    return fetchXml.replace(/<\/entity>/i, `${wrapper}</entity>`);
+  }
+
+  loadExistingFiles = async () => {
+    this.setState({ files: [], sharePointData: [], selectedFiles: [] });
+  
+    if (!this.props.context) return;
+    this.setState({ isLoading: true });
+  
     try {
-      const { sharePointDocLoc } = this.state;
-      if (!sharePointDocLoc) {
-        const response = await getRelatedNotes(this.props.context);
-        if (response.success) {
-          const filesData: FileData[] = response.data.map((item: any) => ({
-            filename: item.filename,
-            filesize: item.filesize,
-            documentbody: item.documentbody,
-            mimetype: item.mimetype,
-            noteId: item.annotationid,
-            createdon: new Date(item.createdon),
-            subject: item.subject,
-            notetext: item.notetext,
-          }));
-          this.setState({ files: filesData });
-        } else {
-          console.error("Failed to retrieve files:", response.message);
-        }
-      } else {
+      if (!this.state.sharePointDocLoc) {
+        let noteRows: any[] = [];
+    
+        const cols =
+          "filename,filesize,documentbody,mimetype,annotationid,createdon,subject,notetext";
+    
+          if (this.state.selectedViewId) {
+            const view = this.state.noteViews.find(
+              v => v.savedqueryid === this.state.selectedViewId
+            );
+            if (view?.fetchxml) {
+              /* 1. add the regarding filter */
+              const meta   = await getEntityMetadata(this.props.context!);
+              const recId  = meta?.entityId?.replace(/[{}]/g, "");
+              const fetch  = recId ? this.addRegardingFilter(view.fetchxml, recId) : view.fetchxml;
+          
+              /* 2. ask for the extra columns you need                                */
+              const cols =
+                "filename,filesize,documentbody,mimetype,annotationid,createdon,subject,notetext";
+          
+              const res = await this.props.context!.webAPI.retrieveMultipleRecords(
+                "annotation",
+                `?fetchXml=${encodeURIComponent(fetch)}&$select=${cols}`
+              );
+          
+              noteRows = res.entities;
+            }
+          } else {
+            /* fallback to current-record-only logic */
+            const res = await getRelatedNotes(this.props.context!);
+            if (res.success) noteRows = res.data;
+          }
+  
+        const filesData: FileData[] = noteRows.map(r => ({
+          filename:     r.filename,
+          filesize:     r.filesize,
+          documentbody: r.documentbody,
+          mimetype:     r.mimetype,
+          noteId:       r.annotationid,
+          createdon:    new Date(r.createdon),
+          subject:      r.subject,
+          notetext:     r.notetext,
+        }));
+        this.setState({ files: filesData });
+      }
+  
+      else if (this.state.selectedDocumentLocation) {
         if (this.state.documentLocations.length === 0) {
           await this.getSharePointLocations();
-          await this.getSharePointData();
-        } else {
-          await this.getSharePointData();
         }
+        await this.getSharePointData();
       }
-    } catch (error) {
-      console.error("Error loading files:", error);
+    } catch (err) {
+      console.error("Error loading files:", err);
     } finally {
       await this.delay(2000);
       this.setState({ isLoading: false });
     }
   };
+  
 
   delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -1334,10 +1438,21 @@ export class Landing extends Component<LandingProps, LandingState> {
     }
   }
 
+  async handleViewChange(
+    _e: React.FormEvent<HTMLDivElement>,
+    option?: IDropdownOption
+  ) {
+    if (!option) return;
+  
+    this.setState({ selectedViewId: option.key as string }, () =>
+      this.loadExistingFiles()
+    );
+  }
+
   renderRibbon = () => {
     const { selectedFiles, sharePointDocLoc, isCollapsed, formType } =
       this.state;
-    const formIsDisabled = formType !== 2;
+    const formIsDisabled = this.props.isDisabled || formType !== 2;
     const commandButtons = (
       <Stack horizontal tokens={ribbonStackTokens}>
         {!sharePointDocLoc && selectedFiles.length < 2 && (
@@ -1360,7 +1475,14 @@ export class Landing extends Component<LandingProps, LandingState> {
               iconProps={{ iconName: "Edit" }}
               text="Rename"
               onClick={() => this.performActionOnSelectedFiles("edit")}
-              disabled={selectedFiles.length === 0}
+              disabled={
+                selectedFiles.length !== 1 ||
+                !this.state.files.some(
+                  (file) =>
+                    selectedFiles.includes(file.noteId!) &&
+                    (isImage(file.mimetype!) || isPDF(file.mimetype!))
+                )
+              }
               className="icon-button"
             />
           </>
@@ -1769,6 +1891,8 @@ export class Landing extends Component<LandingProps, LandingState> {
       isSaveButtonEnabled,
       sharePointEnabledParameter,
       formType,
+      noteViews,
+      selectedViewId
     } = this.state;
 
     const formIsDisabled = formType !== 2;
@@ -1779,6 +1903,10 @@ export class Landing extends Component<LandingProps, LandingState> {
         text: location.name,
       })
     );
+    const viewOptions: IDropdownOption[] = noteViews.map(v => ({
+      key:  v.savedqueryid,
+      text: v.name,
+    }));
     const comboBoxOptions: IDropdownOption[] = documentLocations
       .filter((location) => location.parentsiteid)
       .map((location) => ({
@@ -1847,7 +1975,17 @@ export class Landing extends Component<LandingProps, LandingState> {
         </div>
       );
     }
+    let displayNotesViewsControlParameter =
+    getControlValue(this.props.context!, "displayNotesViewsControl") === true;
 
+    let displaySPDropdownControlParameter =
+    getControlValue(this.props.context!, "displaySharePointDocumentLocationsControl") === true;
+
+    let enableNotesViewsControlParameter =
+    getControlValue(this.props.context!, "enableNotesViewsControl") === true;
+   
+    let enableSharePointDocumentLocationsControlParameter =
+    getControlValue(this.props.context!, "enableSharePointDocumentLocationsControl") === true;
     return (
       <>
         <Toaster position="top-right" reverseOrder={false} />
@@ -2076,11 +2214,11 @@ export class Landing extends Component<LandingProps, LandingState> {
                     </Stack>
                   </Callout>
                 )}
-                {sharePointDocLoc && (
+                {sharePointDocLoc && displaySPDropdownControlParameter ? (
                   <>
                     <Dropdown
                       options={dropdownOptions}
-                      disabled={false}
+                      disabled={!enableSharePointDocumentLocationsControlParameter}
                       styles={dropdownStyles}
                       onChange={this.handleDropdownChange}
                       selectedKey={selectedDocumentLocation}
@@ -2096,10 +2234,21 @@ export class Landing extends Component<LandingProps, LandingState> {
                           menuProps={menuProps}
                           ariaLabel="New item"
                           onClick={this.openCreateLocationDialog}
+                          disabled={!enableSharePointDocumentLocationsControlParameter}
                         />
                       </div>
                     )}
                   </>
+                ):(
+                  displayNotesViewsControlParameter && (
+                    <Dropdown
+                      options={viewOptions}
+                      disabled={!enableNotesViewsControlParameter}
+                      onChange={this.handleViewChange}
+                      selectedKey={selectedViewId}
+                      styles={dropdownStyles}
+                    />
+                  )
                 )}
                 <Dialog
                   hidden={!isCreateLocationDialogVisible}

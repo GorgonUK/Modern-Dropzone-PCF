@@ -15,7 +15,7 @@ export class Dropzone
     state: ComponentFramework.Dictionary,
     container: HTMLDivElement
   ): void {
-    console.log("Dropzone PCF 2.8 Initialised");
+    console.log("Dropzone PCF 2.9 Initialised");
     this.theContainer = container;
     this.notifyOutputChanged = notifyOutputChanged;
     this.webAPI = context.webAPI;
@@ -62,7 +62,8 @@ export class Dropzone
   public updateView(
     context: ComponentFramework.Context<IInputs>
   ): React.ReactElement {
-    return React.createElement(Landing, { context: context });
+    let isDisabled = context.mode.isControlDisabled;
+    return React.createElement(Landing, { context: context, isDisabled });
   }
   public getOutputs(): IOutputs {
     return {};
