@@ -71,3 +71,22 @@ export type GenericActionResponse = {
     success: boolean;
     message: string;
   };
+
+  export interface NoteView {
+    savedqueryid: string;   // GUID
+    name: string;
+    fetchxml: string;
+  }
+  
+  export type NoteViewSuccess = {
+    success: true;
+    data: NoteView[];
+  };
+  
+  export type NoteViewError = {
+    success: false;
+    message: string;
+    data: [];
+  };
+  
+  export type NoteViewResult = NoteViewSuccess | NoteViewError;
