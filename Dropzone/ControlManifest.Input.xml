@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest>
-  <control namespace="GorgonUK" constructor="Dropzone" version="0.0.61" display-name-key="Modern Dropzone" description-key="Modern Dropzone component for Dynamics365 that integrates with Notes and SharePoint OOTB" control-type="virtual">
+  <control namespace="GorgonUK" constructor="Dropzone" version="0.0.63" display-name-key="Modern Dropzone" description-key="Modern Dropzone component for Dynamics365 that integrates with Notes and SharePoint OOTB" control-type="virtual">
     <data-set name="sampleDataSet" display-name-key="Select any table">
     </data-set>
     <property name="enableSharePointDocuments" display-name-key="Enable SharePoint Documents?" description-key="Simply provide Yes/No" of-type="TwoOptions" usage="input" required="true" default-value="true" />

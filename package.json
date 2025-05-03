@@ -28,8 +28,7 @@
     "react-image": "^4.1.0",
     "react-tippy": "^1.4.0",
     "url": "^0.11.3",
-    "util": "^0.12.5",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz"
+    "util": "^0.12.5"
   },
   "devDependencies": {
     "@microsoft/eslint-plugin-power-apps": "^0.2.33",

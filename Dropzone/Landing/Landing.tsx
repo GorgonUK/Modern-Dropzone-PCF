@@ -75,7 +75,6 @@ import {
   getFileTypeIconProps,
   initializeFileTypeIcons,
 } from "@uifabric/file-type-icons";
-import { read, utils } from "xlsx";
 import { Tooltip } from "react-tippy";
 import "react-tippy/dist/tippy.css";
 import toast, { Toaster } from "react-hot-toast";
@@ -347,10 +346,10 @@ export class Landing extends Component<LandingProps, LandingState> {
     const value = newValue ?? target.value;
     this.setState(
       (prevState) =>
-        ({
-          ...prevState,
-          [name]: value,
-        } as unknown as LandingState),
+      ({
+        ...prevState,
+        [name]: value,
+      } as unknown as LandingState),
       this.validateForm
     );
   };
@@ -467,7 +466,7 @@ export class Landing extends Component<LandingProps, LandingState> {
 
   private async getSharePointLocations(): Promise<void> {
     const response = await getSharePointLocations(this.props.context!);
-  
+
     if (response.length === 0) {
       this.setState({
         documentLocations: [],
@@ -479,7 +478,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       });
       return;
     }
-  
+
     this.setState({
       documentLocations: response,
       selectedDocumentLocation: response[0].sharepointdocumentlocationid,
@@ -502,7 +501,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       this.setState({ sharePointData: [], isLoading: false });
       return;
     }
-  
+
     this.setState(
       prev => {
         const folderStack = [...prev.folderStack];
@@ -575,34 +574,39 @@ export class Landing extends Component<LandingProps, LandingState> {
     return response.length === 0 ? true : false;
   }
 
- 
+
 
   async componentDidMount() {
     this.setState({ isViewsLoading: true });
-  
+
     const defaultNotesViewName =
       (getControlValue(this.props.context!, "defaultNotesView") as string) ?? ""
         .trim();
-  
+
     try {
       const res = await getNoteViews(this.props.context!);
-  
-      if (res.success) {
 
-        const availableViews = res.data.filter(
+      if (res.success) {
+        let availableViews = res.data.filter(
           (v) => !EXCLUDED_NOTE_VIEWS.has(v.name)
         );
-
+      
+        const allNotes = availableViews.find(
+          (v) => v.name.toLowerCase() === "all notes"
+        );
+        const otherViews = availableViews.filter(
+          (v) => v.name.toLowerCase() !== "all notes"
+        );
+        availableViews = allNotes ? [allNotes, ...otherViews] : availableViews;
+      
         const findByName = (name: string) =>
-          availableViews.find(
-            (v) => v.name.toLowerCase() === name.toLowerCase()
-          );
-
+          availableViews.find((v) => v.name.toLowerCase() === name.toLowerCase());
+      
         const defaultView =
           (defaultNotesViewName && findByName(defaultNotesViewName)) ||
           findByName("All Notes") ||
           availableViews[0];
-  
+
         this.setState({
           noteViews: availableViews,
           selectedViewId: defaultView?.savedqueryid,
@@ -616,7 +620,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       console.error("Failed to load note views:", err);
       this.setState({ isViewsLoading: false });
     }
-  
+
 
     var formType = Xrm.Page.ui.getFormType();
     this.setState({ formType });
@@ -710,7 +714,7 @@ export class Landing extends Component<LandingProps, LandingState> {
   componentDidUpdate(prevProps: LandingProps) {
     const prevId = (prevProps.context as any).page.entityId;
     const currId = (this.props.context as any).page.entityId;
-  
+
     if (prevId !== currId) {
       this.setState({
         files: [],
@@ -757,14 +761,16 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   handleDrop = async (acceptedFiles: File[]) => {
+    const { context, isDisabled } = this.props;
     if (this.state.formType !== 2) {
       return;
     }
-    let allowNoteDropsParameter =
-      getControlValue(this.props.context!, "allowNoteDrops") === true;
+    const allowNoteDropsParameter =
+      !isDisabled && getControlValue(context!, "allowNoteDrops") === true;
 
-    let allowSharePointDropsParameter =
-      getControlValue(this.props.context!, "allowSharePointDrops") === true;
+    const allowSharePointDropsParameter =
+      !isDisabled && getControlValue(context!, "allowSharePointDrops") === true;
+
 
     if (!this.state.sharePointDocLoc && allowNoteDropsParameter) {
       acceptedFiles.forEach((file) => {
@@ -807,7 +813,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                 throw new Error("Note ID was not returned");
               }
             },
-            
+
             error: "Error uploading file",
           }).then(() => this.loadExistingFiles());
         };
@@ -827,7 +833,7 @@ export class Landing extends Component<LandingProps, LandingState> {
           if (
             this.state.documentLocations.length == 1 &&
             this.state.selectedDocumentLocationName ==
-              "Documents on Default Site 1"
+            "Documents on Default Site 1"
           ) {
             defaultLocation = "";
           } else {
@@ -874,7 +880,7 @@ export class Landing extends Component<LandingProps, LandingState> {
   addRegardingFilter(fetchXml: string, recordId: string): string {
     const newCond =
       `<condition attribute="objectid" operator="eq" value="${recordId}"/>`;
-  
+
     if (fetchXml.match(/<filter[^>]*>/i)) {
       return fetchXml.replace(/(<filter[^>]*>)/i, `$1${newCond}`);
     }
@@ -886,57 +892,57 @@ export class Landing extends Component<LandingProps, LandingState> {
 
   loadExistingFiles = async () => {
     this.setState({ files: [], sharePointData: [], selectedFiles: [] });
-  
+
     if (!this.props.context) return;
     this.setState({ isLoading: true });
-  
+
     try {
       if (!this.state.sharePointDocLoc) {
         let noteRows: any[] = [];
-    
+
         const cols =
           "filename,filesize,documentbody,mimetype,annotationid,createdon,subject,notetext";
-    
-          if (this.state.selectedViewId) {
-            const view = this.state.noteViews.find(
-              v => v.savedqueryid === this.state.selectedViewId
+
+        if (this.state.selectedViewId) {
+          const view = this.state.noteViews.find(
+            v => v.savedqueryid === this.state.selectedViewId
+          );
+          if (view?.fetchxml) {
+            /* 1. add the regarding filter */
+            const meta = await getEntityMetadata(this.props.context!);
+            const recId = meta?.entityId?.replace(/[{}]/g, "");
+            const fetch = recId ? this.addRegardingFilter(view.fetchxml, recId) : view.fetchxml;
+
+            /* 2. ask for the extra columns you need                                */
+            const cols =
+              "filename,filesize,documentbody,mimetype,annotationid,createdon,subject,notetext";
+
+            const res = await this.props.context!.webAPI.retrieveMultipleRecords(
+              "annotation",
+              `?fetchXml=${encodeURIComponent(fetch)}&$select=${cols}`
             );
-            if (view?.fetchxml) {
-              /* 1. add the regarding filter */
-              const meta   = await getEntityMetadata(this.props.context!);
-              const recId  = meta?.entityId?.replace(/[{}]/g, "");
-              const fetch  = recId ? this.addRegardingFilter(view.fetchxml, recId) : view.fetchxml;
-          
-              /* 2. ask for the extra columns you need                                */
-              const cols =
-                "filename,filesize,documentbody,mimetype,annotationid,createdon,subject,notetext";
-          
-              const res = await this.props.context!.webAPI.retrieveMultipleRecords(
-                "annotation",
-                `?fetchXml=${encodeURIComponent(fetch)}&$select=${cols}`
-              );
-          
-              noteRows = res.entities;
-            }
-          } else {
-            /* fallback to current-record-only logic */
-            const res = await getRelatedNotes(this.props.context!);
-            if (res.success) noteRows = res.data;
+
+            noteRows = res.entities;
           }
-  
+        } else {
+          /* fallback to current-record-only logic */
+          const res = await getRelatedNotes(this.props.context!);
+          if (res.success) noteRows = res.data;
+        }
+
         const filesData: FileData[] = noteRows.map(r => ({
-          filename:     r.filename,
-          filesize:     r.filesize,
+          filename: r.filename,
+          filesize: r.filesize,
           documentbody: r.documentbody,
-          mimetype:     r.mimetype,
-          noteId:       r.annotationid,
-          createdon:    new Date(r.createdon),
-          subject:      r.subject,
-          notetext:     r.notetext,
+          mimetype: r.mimetype,
+          noteId: r.annotationid,
+          createdon: new Date(r.createdon),
+          subject: r.subject,
+          notetext: r.notetext,
         }));
         this.setState({ files: filesData });
       }
-  
+
       else if (this.state.selectedDocumentLocation) {
         if (this.state.documentLocations.length === 0) {
           await this.getSharePointLocations();
@@ -950,7 +956,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       this.setState({ isLoading: false });
     }
   };
-  
+
 
   delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -1051,8 +1057,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         } catch (error) {
           console.error("Error opening the file:", error);
           toast.error(
-            `Failed to open file: ${
-              error instanceof Error ? error.message : "Unknown error"
+            `Failed to open file: ${error instanceof Error ? error.message : "Unknown error"
             }`
           );
         }
@@ -1129,9 +1134,8 @@ export class Landing extends Component<LandingProps, LandingState> {
           error: (err) => {
             this.setState({ isLoading: false });
             console.error("Error deleting SharePoint document: ", err);
-            return `Failed to delete SharePoint document: ${
-              err.message || "Unknown error"
-            }`;
+            return `Failed to delete SharePoint document: ${err.message || "Unknown error"
+              }`;
           },
         }
       );
@@ -1443,7 +1447,7 @@ export class Landing extends Component<LandingProps, LandingState> {
     option?: IDropdownOption
   ) {
     if (!option) return;
-  
+
     this.setState({ selectedViewId: option.key as string }, () =>
       this.loadExistingFiles()
     );
@@ -1711,11 +1715,10 @@ export class Landing extends Component<LandingProps, LandingState> {
             {sharePointData.map((file) => (
               <div
                 key={file.sharepointdocumentid}
-                className={`file-box ${
-                  selectedFiles.includes(file.sharepointdocumentid)
+                className={`file-box ${selectedFiles.includes(file.sharepointdocumentid)
                     ? "selected"
                     : ""
-                }`}
+                  }`}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -1822,9 +1825,8 @@ export class Landing extends Component<LandingProps, LandingState> {
           {files.map((file) => (
             <div
               key={file.noteId}
-              className={`file-box ${
-                selectedFiles.includes(file.noteId || "") ? "selected" : ""
-              }`}
+              className={`file-box ${selectedFiles.includes(file.noteId || "") ? "selected" : ""
+                }`}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -1904,7 +1906,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       })
     );
     const viewOptions: IDropdownOption[] = noteViews.map(v => ({
-      key:  v.savedqueryid,
+      key: v.savedqueryid,
       text: v.name,
     }));
     const comboBoxOptions: IDropdownOption[] = documentLocations
@@ -1975,17 +1977,18 @@ export class Landing extends Component<LandingProps, LandingState> {
         </div>
       );
     }
+    const { context, isDisabled } = this.props;
     let displayNotesViewsControlParameter =
-    getControlValue(this.props.context!, "displayNotesViewsControl") === true;
+      getControlValue(context!, "displayNotesViewsControl") === true;
 
     let displaySPDropdownControlParameter =
-    getControlValue(this.props.context!, "displaySharePointDocumentLocationsControl") === true;
+      getControlValue(context!, "displaySharePointDocumentLocationsControl") === true;
 
     let enableNotesViewsControlParameter =
-    getControlValue(this.props.context!, "enableNotesViewsControl") === true;
-   
+      getControlValue(context!, "enableNotesViewsControl") === true;
+
     let enableSharePointDocumentLocationsControlParameter =
-    getControlValue(this.props.context!, "enableSharePointDocumentLocationsControl") === true;
+      getControlValue(context!, "enableSharePointDocumentLocationsControl") === true;
     return (
       <>
         <Toaster position="top-right" reverseOrder={false} />
@@ -2115,13 +2118,14 @@ export class Landing extends Component<LandingProps, LandingState> {
         <div className="ribbon-dropzone-wrapper">
           {this.renderRibbon()}
 
-          <Dropzone onDrop={this.handleDrop} disabled={formIsDisabled}>
+          <Dropzone onDrop={this.handleDrop} disabled={formIsDisabled || isDisabled} >
             {({ getRootProps, getInputProps }) => (
               <div className="dropzone-wrapper">
-                <div
-                  {...getRootProps()}
-                  className={`dropzone ${isEmpty ? "empty" : ""}`}
-                >
+               <div
+        {...getRootProps()}
+        className={`dropzone ${isEmpty ? "empty" : ""}`}
+        style={{ cursor: (formIsDisabled || isDisabled) ? "default" : "pointer" }}
+      >
                   {isLoading ? (
                     <div className="spinner-box">
                       <Spinner size={SpinnerSize.medium} />
@@ -2239,7 +2243,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                       </div>
                     )}
                   </>
-                ):(
+                ) : (
                   displayNotesViewsControlParameter && (
                     <Dropdown
                       options={viewOptions}
