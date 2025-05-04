@@ -80,7 +80,7 @@ import "react-tippy/dist/tippy.css";
 import toast, { Toaster } from "react-hot-toast";
 import FolderIcon from "./FolderIcon";
 import { getEntityMetadata, getControlValue } from "../utils";
-
+import ReactViewer from 'react-viewer';
 export interface LandingProps {
   context?: ComponentFramework.Context<IInputs>;
   isDisabled: boolean;
@@ -205,7 +205,7 @@ const EXCLUDED_NOTE_VIEWS = new Set<string>([
 
 export class Landing extends Component<LandingProps, LandingState> {
   private targetRef: React.RefObject<HTMLDivElement>;
-  private viewFetchXml: string | null = null;
+  private viewerHost = React.createRef<HTMLDivElement>();
   constructor(props: LandingProps) {
     super(props);
     initializeFileTypeIcons();
@@ -501,7 +501,6 @@ export class Landing extends Component<LandingProps, LandingState> {
       this.setState({ sharePointData: [], isLoading: false });
       return;
     }
-
     this.setState(
       prev => {
         const folderStack = [...prev.folderStack];
@@ -590,7 +589,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         let availableViews = res.data.filter(
           (v) => !EXCLUDED_NOTE_VIEWS.has(v.name)
         );
-      
+
         const allNotes = availableViews.find(
           (v) => v.name.toLowerCase() === "all notes"
         );
@@ -598,10 +597,10 @@ export class Landing extends Component<LandingProps, LandingState> {
           (v) => v.name.toLowerCase() !== "all notes"
         );
         availableViews = allNotes ? [allNotes, ...otherViews] : availableViews;
-      
+
         const findByName = (name: string) =>
           availableViews.find((v) => v.name.toLowerCase() === name.toLowerCase());
-      
+
         const defaultView =
           (defaultNotesViewName && findByName(defaultNotesViewName)) ||
           findByName("All Notes") ||
@@ -665,12 +664,11 @@ export class Landing extends Component<LandingProps, LandingState> {
       getControlValue(this.props.context!, "enableSharePointDocuments") ===
       true;
     this.setState({ sharePointEnabledParameter });
-
     if (
       settings &&
       settings.selectedDocumentLocation &&
       settings.selectedDocumentLocationName &&
-      (sharePointEnabledParameter === true || sharePointEnabled == false)
+      (sharePointEnabledParameter === true || sharePointEnabled === false)
     ) {
       this.setState(
         {
@@ -891,17 +889,23 @@ export class Landing extends Component<LandingProps, LandingState> {
   }
 
   loadExistingFiles = async () => {
-    this.setState({ files: [], sharePointData: [], selectedFiles: [] });
+    
 
     if (!this.props.context) return;
     this.setState({ isLoading: true });
 
+    const recordId = (this.props.context as any).page.entityId;
+    if (!recordId) {
+      this.setState({ isLoading: false, files: [], sharePointData: [] });
+      return;
+    }
+    this.setState({ isLoading: false, files: [], sharePointData: [] });
     try {
+      
       if (!this.state.sharePointDocLoc) {
         let noteRows: any[] = [];
-
         const cols =
-          "filename,filesize,documentbody,mimetype,annotationid,createdon,subject,notetext";
+        "filename,filesize,documentbody,mimetype,annotationid,createdon,subject,notetext";
 
         if (this.state.selectedViewId) {
           const view = this.state.noteViews.find(
@@ -942,17 +946,15 @@ export class Landing extends Component<LandingProps, LandingState> {
         }));
         this.setState({ files: filesData });
       }
-
-      else if (this.state.selectedDocumentLocation) {
-        if (this.state.documentLocations.length === 0) {
-          await this.getSharePointLocations();
-        }
+      
+      else  {
+        await this.getSharePointLocations();
         await this.getSharePointData();
       }
     } catch (err) {
       console.error("Error loading files:", err);
     } finally {
-      await this.delay(2000);
+      await this.delay(3000);
       this.setState({ isLoading: false });
     }
   };
@@ -1312,15 +1314,28 @@ export class Landing extends Component<LandingProps, LandingState> {
   };
 
   openDialog(file: PreviewFile) {
-    this.setState({
-      isDialogOpen: true,
-      previewFile: {
-        ...file,
-        documentbody: createDataUri(file.mimetype, file.documentbody),
-      },
-      xlsxContent: "",
-      xlsxData: null,
-    });
+    const isImageType = isImage(file.mimetype);
+    if (isImageType) {
+      this.setState({
+        previewFile: {
+          ...file,
+          documentbody: createDataUri(file.mimetype, file.documentbody),
+        },
+        xlsxContent: "",
+        xlsxData: null,
+      });
+    } else {
+      this.setState({
+        isDialogOpen: true,
+        previewFile: {
+          ...file,
+          documentbody: createDataUri(file.mimetype, file.documentbody),
+        },
+        xlsxContent: "",
+        xlsxData: null,
+      });
+    }
+
   }
 
   closeDialog() {
@@ -1693,7 +1708,6 @@ export class Landing extends Component<LandingProps, LandingState> {
     const files = this.getFilteredAndSortedFiles();
     const sharePointData = this.getFilteredAndSortedSPFiles();
     const formIsDisabled = formType !== 2;
-
     if (sharePointDocLoc) {
       return (
         <div style={{ display: "flex", alignItems: "center" }}>
@@ -1716,8 +1730,8 @@ export class Landing extends Component<LandingProps, LandingState> {
               <div
                 key={file.sharepointdocumentid}
                 className={`file-box ${selectedFiles.includes(file.sharepointdocumentid)
-                    ? "selected"
-                    : ""
+                  ? "selected"
+                  : ""
                   }`}
                 onClick={(event) => {
                   event.preventDefault();
@@ -1992,6 +2006,20 @@ export class Landing extends Component<LandingProps, LandingState> {
     return (
       <>
         <Toaster position="top-right" reverseOrder={false} />
+        {isImage(previewFile?.mimetype ?? "") && previewFile && (
+          <ReactViewer
+            visible
+            onClose={this.closeDialog}
+            container={this.viewerHost.current!}
+            images={[{
+              src: previewFile.documentbody.replace(
+                /(data:image\/[a-zA-Z]+;base64,).*?\1/, '$1'),
+              alt: previewFile.filename
+            }]}
+            rotatable scalable zoomable
+            noNavbar={true}
+          />
+        )}
 
         {isDialogOpen && previewFile && (
           <Modal
@@ -2012,6 +2040,7 @@ export class Landing extends Component<LandingProps, LandingState> {
             }}
           >
             <div className={"scrollable-area"}>
+              <div ref={this.viewerHost} style={{ position: 'relative', height: 0 }} />
               {isPDF(previewFile.mimetype) && (
                 <object
                   data={previewFile.documentbody.replace(
@@ -2028,15 +2057,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                   </p>
                 </object>
               )}
-              {isImage(previewFile.mimetype) && (
-                <Img
-                  src={previewFile.documentbody.replace(
-                    /(data:image\/[a-zA-Z]+;base64,).*?\1/,
-                    "$1"
-                  )}
-                  alt={previewFile.filename}
-                />
-              )}
+
             </div>
 
             <DialogFooter
@@ -2121,11 +2142,11 @@ export class Landing extends Component<LandingProps, LandingState> {
           <Dropzone onDrop={this.handleDrop} disabled={formIsDisabled || isDisabled} >
             {({ getRootProps, getInputProps }) => (
               <div className="dropzone-wrapper">
-               <div
-        {...getRootProps()}
-        className={`dropzone ${isEmpty ? "empty" : ""}`}
-        style={{ cursor: (formIsDisabled || isDisabled) ? "default" : "pointer" }}
-      >
+                <div
+                  {...getRootProps()}
+                  className={`dropzone ${isEmpty ? "empty" : ""}`}
+                  style={{ cursor: (formIsDisabled || isDisabled) ? "default" : "pointer" }}
+                >
                   {isLoading ? (
                     <div className="spinner-box">
                       <Spinner size={SpinnerSize.medium} />
@@ -2169,7 +2190,7 @@ export class Landing extends Component<LandingProps, LandingState> {
               </div>
             )}
           </Dropzone>
-          {sharePointEnabledParameter && (
+          
             <Stack
               horizontal
               style={{
@@ -2218,7 +2239,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                     </Stack>
                   </Callout>
                 )}
-                {sharePointDocLoc && displaySPDropdownControlParameter ? (
+                {sharePointDocLoc && displaySPDropdownControlParameter && sharePointEnabledParameter ? (
                   <>
                     <Dropdown
                       options={dropdownOptions}
@@ -2305,7 +2326,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                 </Dialog>
               </Stack>
             </Stack>
-          )}
+          
         </div>
       </>
     );
