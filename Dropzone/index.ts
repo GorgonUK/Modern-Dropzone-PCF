@@ -15,7 +15,7 @@ export class Dropzone
     state: ComponentFramework.Dictionary,
     container: HTMLDivElement
   ): void {
-    console.log("Dropzone PCF 2.9.2x Initialised");
+    console.log("Modern Dropzone PCF 2.9.3 Initialised");
     this.theContainer = container;
     this.notifyOutputChanged = notifyOutputChanged;
     this.webAPI = context.webAPI;

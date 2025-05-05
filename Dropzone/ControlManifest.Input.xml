@@ -1,15 +1,15 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest>
-  <control namespace="GorgonUK" constructor="Dropzone" version="0.0.67" display-name-key="Modern Dropzone" description-key="Modern Dropzone component for Dynamics365 that integrates with Notes and SharePoint OOTB" control-type="virtual">
+  <control namespace="GorgonUK" constructor="Dropzone" version="0.0.68" display-name-key="Modern Dropzone" description-key="Modern Dropzone component for Dynamics365 that integrates with Notes and SharePoint OOTB" control-type="virtual">
     <data-set name="sampleDataSet" display-name-key="Select any table">
     </data-set>
-    <property name="enableSharePointDocuments" display-name-key="Enable SharePoint Documents?" description-key="Simply provide Yes/No" of-type="TwoOptions" usage="input" required="true" default-value="true" />
-    <property name="allowNoteDrops" display-name-key="Allow Note drops?" description-key="Allow users to upload documents to Notes?" of-type="TwoOptions" usage="input" required="true" default-value="true" />
-    <property name="allowSharePointDrops" display-name-key="Allow SharePoint drops?" description-key="Allow users to upload documents to SharePoint?" of-type="TwoOptions" usage="input" required="true" default-value="true" />
-    <property name="displayNotesViewsControl" display-name-key="Display Notes views dropdown?" description-key="Enable users to change Notes views" of-type="TwoOptions" usage="input" required="true" default-value="true" />
-    <property name="enableNotesViewsControl" display-name-key="Enable Notes views dropdown?" description-key="Enable users to change Notes views" of-type="TwoOptions" usage="input" required="true" default-value="true" />
-    <property name="displaySharePointDocumentLocationsControl" display-name-key="Display SharePoint document locations dropdown?" description-key="Enable users to change SP Document Location" of-type="TwoOptions" usage="input" required="true" default-value="true" />
-    <property name="enableSharePointDocumentLocationsControl" display-name-key="Enable SharePoint document locations dropdown?" description-key="Enable users to change SP Document Location" of-type="TwoOptions" usage="input" required="true" default-value="true" />
+    <property name="enableSharePointDocuments" display-name-key="Enable SharePoint Integration?" description-key="Simply provide Yes/No" of-type="TwoOptions" usage="input" required="false" default-value="true" />
+    <property name="allowNoteDrops" display-name-key="Allow Note drops?" description-key="Allow users to upload documents to Notes?" of-type="TwoOptions" usage="input" required="false" default-value="true" />
+    <property name="allowSharePointDrops" display-name-key="Allow SharePoint drops?" description-key="Allow users to upload documents to SharePoint?" of-type="TwoOptions" usage="input" required="false" default-value="true" />
+    <property name="displayNotesViewsControl" display-name-key="Display Notes views dropdown?" description-key="Enable users to change Notes views" of-type="TwoOptions" usage="input" required="false" default-value="true" />
+    <property name="enableNotesViewsControl" display-name-key="Enable Notes views dropdown?" description-key="Enable users to change Notes views" of-type="TwoOptions" usage="input" required="false" default-value="true" />
+    <property name="displaySharePointDocumentLocationsControl" display-name-key="Display SharePoint document locations dropdown?" description-key="Enable users to change SP Document Location" of-type="TwoOptions" usage="input" required="false" default-value="true" />
+    <property name="enableSharePointDocumentLocationsControl" display-name-key="Enable SharePoint document locations dropdown?" description-key="Enable users to change SP Document Location" of-type="TwoOptions" usage="input" required="false" default-value="true" />
     <property name="defaultNotesView" display-name-key="Default Notes View" description-key="Default Notes view" of-type="SingleLine.Text" usage="input" required="false" />
     <resources>
       <code path="index.ts" order="1" />
@@ -18,8 +18,8 @@
       <css path="css/Dropzone.css" order="1" />
     </resources>
     <feature-usage>
-      <uses-feature name="WebAPI" required="true" />
-      <uses-feature name="WebAPI.retrieveMultipleRecords" required="true" />
+      <uses-feature name="WebAPI" required="false" />
+      <uses-feature name="WebAPI.retrieveMultipleRecords" required="false" />
     </feature-usage>
   </control>
 </manifest>
