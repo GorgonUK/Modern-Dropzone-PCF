@@ -1,3 +1,4 @@
+import { LocalStrings } from "./consts/LocalStrings";
 import { IInputs } from "./generated/ManifestTypes";
 import { EntityMetadata } from "./Interfaces";
 import { ActivityType } from "./Interfaces";
@@ -139,3 +140,11 @@ function getFocusedTab() {
     return null;
   }
 }
+
+  type Values<T> = T extends string ? T : { [K in keyof T]: Values<T[K]> }[keyof T];
+  type LocalizationKey = Values<typeof LocalStrings>;
+
+  export const getLocalString = (
+  context: ComponentFramework.Context<any>,
+  key: LocalizationKey
+): string => context.resources.getString(key);
