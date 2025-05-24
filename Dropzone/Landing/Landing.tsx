@@ -30,6 +30,7 @@ import {
   createDataUri,
   isActivityType,
   focusSPDocumentsAndRestore,
+  getLocalString,
 } from "../utils";
 import {
   IContextualMenuItem,
@@ -81,6 +82,7 @@ import toast, { Toaster } from "react-hot-toast";
 import FolderIcon from "./FolderIcon";
 import { getEntityMetadata, getControlValue } from "../utils";
 import ReactViewer from 'react-viewer';
+import { LocalStrings } from "../consts/LocalStrings";
 export interface LandingProps {
   context?: ComponentFramework.Context<IInputs>;
   isDisabled: boolean;
@@ -784,7 +786,7 @@ export class Landing extends Component<LandingProps, LandingState> {
           );
 
           toast.promise(createNotePromise, {
-            loading: "Uploading file...",
+            loading: getLocalString(context!, LocalStrings.Toast.Message_Uploading_Notes),
             success: (res) => {
               if (res.noteId) {
                 this.setState((prevState) => {
@@ -806,18 +808,19 @@ export class Landing extends Component<LandingProps, LandingState> {
                   );
                   return { files: newFiles };
                 });
-                return `File ${file.name} uploaded successfully!`;
+                getLocalString(context!, LocalStrings.Button.Label_Preview)
+                return `File ${file.name} ${getLocalString(context!,LocalStrings.Toast.Message_Upload_Success_Notes)}`;
               } else {
                 throw new Error("Note ID was not returned");
               }
             },
 
-            error: "Error uploading file",
+            error: getLocalString(context!, LocalStrings.Toast.Message_Upload_Error_Notes),
           }).then(() => this.loadExistingFiles());
         };
 
         reader.onerror = () => {
-          toast.error(`Error reading file: ${file.name}`);
+          toast.error(`${getLocalString(context!,LocalStrings.Toast.Message_Read_Error_Notes)} ${file.name}`);
         };
 
         reader.readAsDataURL(file);
@@ -846,7 +849,7 @@ export class Landing extends Component<LandingProps, LandingState> {
           );
 
           toast.promise(uploadPromise, {
-            loading: "Uploading to SharePoint...",
+            loading: getLocalString(context!, LocalStrings.Toast.Message_Uploading_SharePoint),
             success: () => {
               this.getSharePointData(false)
                 .then(() => {
@@ -855,19 +858,19 @@ export class Landing extends Component<LandingProps, LandingState> {
                 .catch((err) => {
                   console.error("Failed to reload files:", err);
                   this.setState({ isLoading: false });
-                  toast.error("Failed to refresh file list.");
+                  toast.error(getLocalString(context!, LocalStrings.Toast.Message_Refresh_Error_SharePoint));
                 });
-              return `File ${file.name} uploaded successfully to SharePoint.`;
+              return `${file.name} ${getLocalString(context!, LocalStrings.Toast.Message_Upload_Success_SharePoint)}`;
             },
             error: (err) => {
               this.setState({ isLoading: false });
-              return `Error uploading to SharePoint: ${err.message}`;
+              return `${getLocalString(context!, LocalStrings.Toast.Message_Upload_Error_SharePoint)} ${err.message}`;
             },
           });
         };
 
         reader.onerror = () => {
-          toast.error(`Error reading file: ${file.name}`);
+          toast.error(`${getLocalString(context!, LocalStrings.Toast.Message_Read_Error_SharePoint)} ${file.name}`);
         };
 
         reader.readAsDataURL(file);
@@ -1004,12 +1007,12 @@ export class Landing extends Component<LandingProps, LandingState> {
         !file.mimetype ||
         !file.filename
       ) {
-        toast.error("Missing file data for download");
+        toast.error(getLocalString(this.props.context!, LocalStrings.Toast.Message_Download_Error_Notes));
         return;
       }
 
       try {
-        toast.loading("Preparing download...");
+        toast.loading(getLocalString(this.props.context!, LocalStrings.Toast.Message_Download_Prepare_Error_Notes));
         let base64Data = file.documentbody;
 
         const dataUrlPrefix = "base64,";
@@ -1059,12 +1062,12 @@ export class Landing extends Component<LandingProps, LandingState> {
         } catch (error) {
           console.error("Error opening the file:", error);
           toast.error(
-            `Failed to open file: ${error instanceof Error ? error.message : "Unknown error"
+            `${getLocalString(this.props.context!, LocalStrings.Toast.Message_Download_Error_Open_Error_SharePoint)} ${error instanceof Error ? error.message : "Unknown error"
             }`
           );
         }
       } else {
-        toast.error("Missing URL for SharePoint file download");
+        toast.error(getLocalString(this.props.context!, LocalStrings.Toast.Message_Download_Error_SharePoint));
       }
     }
   };
@@ -1084,12 +1087,12 @@ export class Landing extends Component<LandingProps, LandingState> {
       }));
 
       toast.promise(deleteRelatedNote(this.props.context!, fileId), {
-        loading: "Deleting file...",
+        loading: getLocalString(this.props.context!, LocalStrings.Toast.Message_Delete_Loading),
         success: () => {
           this.setState((prevState) => ({
             files: prevState.files.filter((file) => file.noteId !== fileId),
           }));
-          return "File successfully deleted!";
+          return getLocalString(this.props.context!, LocalStrings.Toast.Message_Delete_Success);
         },
         error: (err) => {
           this.setState((prevState) => ({
@@ -1098,7 +1101,7 @@ export class Landing extends Component<LandingProps, LandingState> {
             ),
           }));
           console.error("Toast Error: ", err);
-          return `Failed to delete file: ${err.message || "Unknown error"}`;
+          return `${getLocalString(this.props.context!, LocalStrings.Toast.Message_Delete_Failure)} ${err.message || "Unknown error"}`;
         },
       });
     } else {
@@ -1109,7 +1112,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       );
       if (!file) {
         this.setState({ isLoading: false });
-        toast.error("SharePoint document not found.");
+        toast.error(getLocalString(this.props.context!, LocalStrings.Toast.Message_Delete_Error_File_Not_Found_SharePoint));
         return;
       }
       let defaultLocation = this.isDefaultLocation();
@@ -1123,7 +1126,7 @@ export class Landing extends Component<LandingProps, LandingState> {
           defaultLocation
         ),
         {
-          loading: "Deleting SharePoint document...",
+          loading: getLocalString(this.props.context!, LocalStrings.Toast.Message_Delete_Loading),
           success: () => {
             this.setState((prevState) => ({
               sharePointData: prevState.sharePointData.filter(
@@ -1131,12 +1134,12 @@ export class Landing extends Component<LandingProps, LandingState> {
               ),
               isLoading: false,
             }));
-            return "SharePoint document successfully deleted!";
+            return getLocalString(this.props.context!, LocalStrings.Toast.Message_Delete_Success);
           },
           error: (err) => {
             this.setState({ isLoading: false });
             console.error("Error deleting SharePoint document: ", err);
-            return `Failed to delete SharePoint document: ${err.message || "Unknown error"
+            return `${getLocalString(this.props.context!, LocalStrings.Toast.Message_Delete_Failure)} ${err.message || "Unknown error"
               }`;
           },
         }
@@ -1151,9 +1154,9 @@ export class Landing extends Component<LandingProps, LandingState> {
   saveChanges = async (noteId: string, filename: string): Promise<void> => {
     toast
       .promise(updateRelatedNote(this.props.context!, noteId, filename), {
-        loading: "Saving changes...",
-        success: "Changes saved successfully!",
-        error: "Failed to save changes",
+        loading: getLocalString(this.props.context!, LocalStrings.Toast.Message_Save_Loading),
+        success: getLocalString(this.props.context!, LocalStrings.Toast.Message_Save_Success),
+        error: getLocalString(this.props.context!, LocalStrings.Toast.Message_Save_Error),
       })
       .then((response) => {
         if (response.success) {
@@ -1225,7 +1228,7 @@ export class Landing extends Component<LandingProps, LandingState> {
     const { context } = this.props;
     const { newFolderName, currentFolderPath } = this.state;
     if (!newFolderName) {
-      toast.error("Folder name cannot be empty.");
+      toast.error(getLocalString(this.props.context!, LocalStrings.Toast.Message_Create_Folder_Empty_Error));
       return;
     }
     let defaultLocation = this.isDefaultLocation();
@@ -1238,15 +1241,15 @@ export class Landing extends Component<LandingProps, LandingState> {
     );
 
     toast.promise(folderCreationPromise, {
-      loading: "Creating folder...",
+      loading: getLocalString(this.props.context!, LocalStrings.Toast.Message_Create_Folder_Loading),
       success: (data) => {
         this.toggleModal();
         this.loadExistingFiles();
         this.setState({ newFolderName: "" });
-        return `Folder '${newFolderName}' created successfully!`;
+        return `${newFolderName} ${getLocalString(this.props.context!, LocalStrings.Toast.Message_Create_Folder_Success)}`;
       },
       error: (err) => {
-        return `Failed to create folder: ${err.message || err.toString()}`;
+        return `${getLocalString(this.props.context!, LocalStrings.Toast.Message_Create_Folder_Error)} ${err.message || err.toString()}`;
       },
     });
   };
@@ -1508,14 +1511,14 @@ export class Landing extends Component<LandingProps, LandingState> {
         )}
         <CommandButton
           iconProps={{ iconName: "Download" }}
-          text="Download"
+          text={`${getLocalString(this.props.context!, LocalStrings.Button.Label_Download)}`}
           onClick={() => this.performActionOnSelectedFiles("download")}
           disabled={selectedFiles.length === 0}
           className="icon-button"
         />
         <CommandButton
           iconProps={{ iconName: "Delete" }}
-          text="Delete"
+          text={`${getLocalString(this.props.context!, LocalStrings.Button.Label_Delete)}`}
           onClick={() => this.performActionOnSelectedFiles("delete")}
           disabled={selectedFiles.length === 0 || formIsDisabled}
           className="icon-button"
@@ -1526,14 +1529,14 @@ export class Landing extends Component<LandingProps, LandingState> {
     const menuItems: IContextualMenuItem[] = [
       {
         key: "download",
-        text: "Download",
+        text: `${getLocalString(this.props.context!, LocalStrings.Button.Label_Download)}`,
         iconProps: { iconName: "Download" },
         onClick: () => this.performActionOnSelectedFiles("download"),
         disabled: selectedFiles.length === 0,
       },
       {
         key: "delete",
-        text: "Delete",
+        text: `${getLocalString(this.props.context!, LocalStrings.Button.Label_Delete)}`,
         iconProps: { iconName: "Delete" },
         onClick: () => this.performActionOnSelectedFiles("delete"),
         disabled: selectedFiles.length === 0 || formIsDisabled,
@@ -1544,7 +1547,7 @@ export class Landing extends Component<LandingProps, LandingState> {
       menuItems.unshift(
         {
           key: "preview",
-          text: "Preview",
+          text: `${getLocalString(this.props.context!, LocalStrings.Button.Label_Preview)}`,
           iconProps: { iconName: "View" },
           onClick: () => this.performActionOnSelectedFiles("preview"),
           disabled:
@@ -1557,7 +1560,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         },
         {
           key: "rename",
-          text: "Rename",
+          text: `${getLocalString(this.props.context!, LocalStrings.Button.Label_Rename)}`,
           iconProps: { iconName: "Edit" },
           onClick: () => this.performActionOnSelectedFiles("edit"),
           disabled:
@@ -1577,7 +1580,7 @@ export class Landing extends Component<LandingProps, LandingState> {
           <Stack horizontal styles={ribbonStyles} className="easeIn">
             <Stack horizontal tokens={ribbonStackTokens}>
               <SearchBox
-                placeholder="Search files..."
+                placeholder= {`${getLocalString(this.props.context!, LocalStrings.Input.Placeholder_Search)}`}
                 onSearch={(newValue) => this.handleSearch(null, newValue)}
                 onChange={(_, newValue) => this.handleSearch(null, newValue)}
                 styles={{
@@ -1632,7 +1635,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                   {isCollapsed ? (
                     <>
                       <CommandButton
-                        text="Actions"
+                        text={`${getLocalString(this.props.context!, LocalStrings.Button.Label_Actions)}`}
                         onClick={this.toggleMenu}
                         className="icon-button"
                       />
@@ -1648,7 +1651,7 @@ export class Landing extends Component<LandingProps, LandingState> {
               !formIsDisabled && (
                 <CommandButton
                   iconProps={{ iconName: "folder" }}
-                  text="Create Folder"
+                  text={`${getLocalString(this.props.context!, LocalStrings.Button.Label_CreateFolder)}`}
                   onClick={() => this.toggleModal()}
                   disabled={selectedFiles.length > 0}
                   className="icon-button"
@@ -1715,8 +1718,8 @@ export class Landing extends Component<LandingProps, LandingState> {
             <div style={{ marginRight: "20px" }}>
               <IconButton
                 iconProps={{ iconName: "Back" }}
-                title="Back"
-                ariaLabel="Go back"
+                title={`${getLocalString(this.props.context!, LocalStrings.Button.Label_Back)}`}
+                ariaLabel={`${getLocalString(this.props.context!, LocalStrings.Button.Label_Back)}`}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -1766,8 +1769,8 @@ export class Landing extends Component<LandingProps, LandingState> {
                         <IconButton
                           className="remove-button"
                           iconProps={{ iconName: "Cancel" }}
-                          title="Remove"
-                          ariaLabel="Remove"
+                          title={`${getLocalString(this.props.context!, LocalStrings.Button.Label_Remove)}`}
+                          ariaLabel={`${getLocalString(this.props.context!, LocalStrings.Button.Label_Remove)}`}
                           onClick={(event) =>
                             this.handleRemoveFolderClick(event, file)
                           }
@@ -1778,8 +1781,8 @@ export class Landing extends Component<LandingProps, LandingState> {
                         onDismiss={this.toggleRemoveFolderDialog}
                         dialogContentProps={{
                           type: DialogType.normal,
-                          title: "Remove Folder",
-                          subText: `Are you sure you want to delete folder "${selectedFolderForDelete?.fullname}"?`,
+                          title: `${getLocalString(this.props.context!, LocalStrings.Button.Label_Remove_Folder)}`,
+                          subText: `${getLocalString(this.props.context!, LocalStrings.Dialog.DeleteFolder.Confirmation)} "${selectedFolderForDelete?.fullname}"?`,
                         }}
                       >
                         <DialogFooter>
@@ -1790,11 +1793,11 @@ export class Landing extends Component<LandingProps, LandingState> {
                               );
                               this.toggleRemoveFolderDialog();
                             }}
-                            text="Yes"
+                            text={`${getLocalString(this.props.context!, LocalStrings.Dialog.DeleteFolder.Button_Yes)}`}
                           />
                           <DefaultButton
                             onClick={this.toggleRemoveFolderDialog}
-                            text="No"
+                            text={`${getLocalString(this.props.context!, LocalStrings.Dialog.DeleteFolder.Button_No)}`}
                           />
                         </DialogFooter>
                       </Dialog>
@@ -1957,7 +1960,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         {
           key: "settings",
           iconProps: { iconName: "Settings" },
-          text: "Settings",
+          text: `${getLocalString(this.props.context!, LocalStrings.Button.Label_Settings)}`,
           onClick: this.onGearIconClick,
         },
       ],
@@ -1986,8 +1989,7 @@ export class Landing extends Component<LandingProps, LandingState> {
     if (!entityIdExists) {
       return (
         <div className="record-not-created-message">
-          This record hasn&apos;t been created yet. To enable file upload,
-          create this record.
+         {getLocalString(this.props.context!, LocalStrings.Input.Placeholder_Record_Not_Created)}
         </div>
       );
     }
@@ -2080,11 +2082,11 @@ export class Landing extends Component<LandingProps, LandingState> {
             onDismiss={() => this.toggleEditModal()}
             dialogContentProps={{
               type: DialogType.normal,
-              title: "Edit file name",
+              title: `${getLocalString(this.props.context!, LocalStrings.Dialog.EditFile.Title)}`,
             }}
           >
             <TextField
-              label="File name"
+              label={`${getLocalString(this.props.context!, LocalStrings.Dialog.EditFile.Description)}`}
               value={editingFile.filename || ""}
               onChange={(e, newValue) => {
                 const updatedFiles = files.map((file) =>
@@ -2100,11 +2102,11 @@ export class Landing extends Component<LandingProps, LandingState> {
                 onClick={() => {
                   this.saveChanges(editingFile.noteId!, editingFile.filename!);
                 }}
-                text="Save"
+                text={`${getLocalString(this.props.context!, LocalStrings.Dialog.EditFile.Button_Save)}`}
               />
               <DefaultButton
                 onClick={() => this.toggleEditModal()}
-                text="Cancel"
+                text={`${getLocalString(this.props.context!, LocalStrings.Dialog.EditFile.Button_Cancel)}`}
               />
             </DialogFooter>
           </Dialog>
@@ -2114,8 +2116,8 @@ export class Landing extends Component<LandingProps, LandingState> {
           onDismiss={this.toggleModal}
           dialogContentProps={{
             type: DialogType.normal,
-            title: "Create New Folder",
-            subText: "Enter a name of the new folder:",
+            title: `${getLocalString(this.props.context!, LocalStrings.Dialog.CreateFolder.Title)}`,
+            subText:  `${getLocalString(this.props.context!, LocalStrings.Dialog.CreateFolder.Description)}`,
           }}
           modalProps={{
             isBlocking: false,
@@ -2125,15 +2127,15 @@ export class Landing extends Component<LandingProps, LandingState> {
           <TextField
             value={newFolderName}
             onChange={this.handleFolderNameChange}
-            placeholder="Folder name"
+            placeholder={`${getLocalString(this.props.context!, LocalStrings.Dialog.CreateFolder.Input_Placeholder)}`}
           />
           <DialogFooter>
             <PrimaryButton
               onClick={this.createSharePointFolder}
               disabled={!newFolderName.trim()}
-              text="Create"
+              text={`${getLocalString(this.props.context!, LocalStrings.Dialog.CreateFolder.Button_Create)}`}
             />
-            <DefaultButton onClick={this.toggleModal} text="Cancel" />
+            <DefaultButton onClick={this.toggleModal} text={`${getLocalString(this.props.context!, LocalStrings.Dialog.CreateFolder.Button_Cancel)}`} />
           </DialogFooter>
         </Dialog>
         <div className="ribbon-dropzone-wrapper">
@@ -2166,7 +2168,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                           {currentFolderPath && (
                             <IconButton
                               iconProps={{ iconName: "Back" }}
-                              title="Back"
+                              title={`${getLocalString(this.props.context!, LocalStrings.Button.Label_Back)}`}
                               ariaLabel="Go back"
                               onClick={(event) => {
                                 event.preventDefault();
@@ -2205,8 +2207,8 @@ export class Landing extends Component<LandingProps, LandingState> {
               <Toggle
                 label={<div>SharePoint Documents {docLoctooltip}</div>}
                 inlineLabel
-                onText="On"
-                offText="Off"
+                onText={`${getLocalString(this.props.context!, LocalStrings.Toggle.Value_On)}`}
+                offText={`${getLocalString(this.props.context!, LocalStrings.Toggle.Value_Off)}`}
                 checked={sharePointDocLoc}
                 onChange={this.toggleSharePointDocLoc}
                 disabled={sharePointEnabled}
@@ -2282,32 +2284,32 @@ export class Landing extends Component<LandingProps, LandingState> {
                 onDismiss={this.closeCreateLocationDialog}
                 dialogContentProps={{
                   type: DialogType.normal,
-                  title: "Add Location",
+                  title: `${getLocalString(this.props.context!, LocalStrings.Dialog.CreateFolder.Title)}`,
                 }}
               >
                 <Stack tokens={{ childrenGap: 20 }} padding={20}>
                   <Label>
-                    Create a new document location in Microsoft Dynamics 365
+                    {`${getLocalString(this.props.context!, LocalStrings.Dialog.AddLocation.Description)}`}
                   </Label>
                   <TextField
-                    label="Display Name"
+                    label={`${getLocalString(this.props.context!, LocalStrings.Dialog.AddLocation.Input_Label_DisplayName)}`}
                     required
                     name="createLocationDisplayName"
                     value={createLocationDisplayName}
                     onChange={this.handleInputChange}
                   />
                   <Label>
-                    Create new folder at the specified parent site
+                    {`${getLocalString(this.props.context!, LocalStrings.Dialog.AddLocation.Description)}`}
                   </Label>
                   <ComboBox
-                    label="Parent Site"
+                    label={`${getLocalString(this.props.context!, LocalStrings.Dialog.AddLocation.Input_Label_DisplayName)}`}
                     required
                     selectedKey={selectedCreateLocation}
                     options={comboBoxOptions}
                     onChange={this.handleCreateLocationDropdownChange}
                   />
                   <TextField
-                    label="Folder Name"
+                    label={`${getLocalString(this.props.context!, LocalStrings.Dialog.AddLocation.Input_Label_FolderName)}`}
                     required
                     name="createLocationFolderName"
                     value={createLocationFolderName}
@@ -2317,12 +2319,12 @@ export class Landing extends Component<LandingProps, LandingState> {
                 <DialogFooter>
                   <PrimaryButton
                     onClick={this.handlecreateLocation}
-                    text="Save"
+                    text={`${getLocalString(this.props.context!, LocalStrings.Dialog.AddLocation.Button_Save)}`}
                     disabled={!isSaveButtonEnabled}
                   />
                   <DefaultButton
                     onClick={this.closeCreateLocationDialog}
-                    text="Cancel"
+                    text={`${getLocalString(this.props.context!, LocalStrings.Dialog.AddLocation.Button_Cancel)}`}
                   />
                 </DialogFooter>
               </Dialog>

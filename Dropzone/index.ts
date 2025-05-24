@@ -1,6 +1,8 @@
 import { IInputs, IOutputs } from "./generated/ManifestTypes";
 import { Landing } from "./Landing/Landing";
 import * as React from "react";
+import { getLocalString } from "./utils";
+import { LocalStrings } from "./consts/LocalStrings";
 
 export class Dropzone
   implements ComponentFramework.ReactControl<IInputs, IOutputs>
@@ -15,7 +17,8 @@ export class Dropzone
     state: ComponentFramework.Dictionary,
     container: HTMLDivElement
   ): void {
-    console.log("Modern Dropzone PCF 2.9.3 Initialised");
+    const appName = getLocalString(context, LocalStrings.Button.Label_Preview)
+    console.log(`${appName} PCF 2.9.5 Initialised`);
     this.theContainer = container;
     this.notifyOutputChanged = notifyOutputChanged;
     this.webAPI = context.webAPI;

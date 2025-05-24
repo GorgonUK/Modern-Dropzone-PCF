@@ -1,8 +1,7 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <manifest>
-  <control namespace="GorgonUK" constructor="Dropzone" version="0.0.68" display-name-key="Modern Dropzone" description-key="Modern Dropzone component for Dynamics365 that integrates with Notes and SharePoint OOTB" control-type="virtual">
-    <data-set name="sampleDataSet" display-name-key="Select any table">
-    </data-set>
+  <control namespace="GorgonUK" constructor="Dropzone" version="0.0.74" display-name-key="Modern Dropzone" description-key="Modern Dropzone component for Dynamics365 that integrates with Notes and SharePoint OOTB" control-type="virtual">
+    <data-set name="sampleDataSet" display-name-key="Select any table" />
     <property name="enableSharePointDocuments" display-name-key="Enable SharePoint Integration?" description-key="Simply provide Yes/No" of-type="TwoOptions" usage="input" required="false" default-value="true" />
     <property name="allowNoteDrops" display-name-key="Allow Note drops?" description-key="Allow users to upload documents to Notes?" of-type="TwoOptions" usage="input" required="false" default-value="true" />
     <property name="allowSharePointDrops" display-name-key="Allow SharePoint drops?" description-key="Allow users to upload documents to SharePoint?" of-type="TwoOptions" usage="input" required="false" default-value="true" />
@@ -15,7 +14,9 @@
       <code path="index.ts" order="1" />
       <platform-library name="React" version="16.8.6" />
       <platform-library name="Fluent" version="8.29.0" />
-      <css path="css/Dropzone.css" order="1" />
+      <css path="css/Dropzone.css" order="2" />
+      <resx path="strings/Dropzone.1033.resx" version="1.0.0" />
+      <resx path="strings/Dropzone.2057.resx" version="1.0.0" />
     </resources>
     <feature-usage>
       <uses-feature name="WebAPI" required="false" />
