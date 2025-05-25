@@ -31,6 +31,7 @@ import {
   isActivityType,
   focusSPDocumentsAndRestore,
   getLocalString,
+  b64toBlob,
 } from "../utils";
 import {
   IContextualMenuItem,
@@ -809,7 +810,7 @@ export class Landing extends Component<LandingProps, LandingState> {
                   return { files: newFiles };
                 });
                 getLocalString(context!, LocalStrings.Button.Label_Preview)
-                return `File ${file.name} ${getLocalString(context!,LocalStrings.Toast.Message_Upload_Success_Notes)}`;
+                return `File ${file.name} ${getLocalString(context!, LocalStrings.Toast.Message_Upload_Success_Notes)}`;
               } else {
                 throw new Error("Note ID was not returned");
               }
@@ -820,7 +821,7 @@ export class Landing extends Component<LandingProps, LandingState> {
         };
 
         reader.onerror = () => {
-          toast.error(`${getLocalString(context!,LocalStrings.Toast.Message_Read_Error_Notes)} ${file.name}`);
+          toast.error(`${getLocalString(context!, LocalStrings.Toast.Message_Read_Error_Notes)} ${file.name}`);
         };
 
         reader.readAsDataURL(file);
@@ -1580,7 +1581,7 @@ export class Landing extends Component<LandingProps, LandingState> {
           <Stack horizontal styles={ribbonStyles} className="easeIn">
             <Stack horizontal tokens={ribbonStackTokens}>
               <SearchBox
-                placeholder= {`${getLocalString(this.props.context!, LocalStrings.Input.Placeholder_Search)}`}
+                placeholder={`${getLocalString(this.props.context!, LocalStrings.Input.Placeholder_Search)}`}
                 onSearch={(newValue) => this.handleSearch(null, newValue)}
                 onChange={(_, newValue) => this.handleSearch(null, newValue)}
                 styles={{
@@ -1989,7 +1990,7 @@ export class Landing extends Component<LandingProps, LandingState> {
     if (!entityIdExists) {
       return (
         <div className="record-not-created-message">
-         {getLocalString(this.props.context!, LocalStrings.Input.Placeholder_Record_Not_Created)}
+          {getLocalString(this.props.context!, LocalStrings.Input.Placeholder_Record_Not_Created)}
         </div>
       );
     }
@@ -2044,20 +2045,27 @@ export class Landing extends Component<LandingProps, LandingState> {
             <div className={"scrollable-area"}>
               <div ref={this.viewerHost} style={{ position: 'relative', height: 0 }} />
               {isPDF(previewFile.mimetype) && (
-                <object
-                  data={previewFile.documentbody.replace(
-                    /(data:application\/pdf;base64,).*?\1/,
-                    "$1"
-                  )}
-                  type="application/pdf"
-                  width="100%"
-                  height="100%"
-                >
-                  <p>
-                    Your browser does not support PDFs.{" "}
-                    <a href={previewFile.documentbody}>Download the PDF</a>.
-                  </p>
-                </object>
+                previewFile.documentbody.length > 1_000_000 ? (
+                  (() => {
+                    this.closeDialog();
+                    const blob = b64toBlob(previewFile.documentbody, "application/pdf");
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, "_blank");
+                    return null;
+                  })()
+                ) : (
+                  <object
+                    data={`data:application/pdf;base64,${previewFile.documentbody}`}
+                    type="application/pdf"
+                    width="100%"
+                    height="100%"
+                  >
+                    <p>
+                      Your browser does not support PDFs.{" "}
+                      <a href={`data:application/pdf;base64,${previewFile.documentbody}`}>Download the PDF</a>.
+                    </p>
+                  </object>
+                )
               )}
 
             </div>
@@ -2117,7 +2125,7 @@ export class Landing extends Component<LandingProps, LandingState> {
           dialogContentProps={{
             type: DialogType.normal,
             title: `${getLocalString(this.props.context!, LocalStrings.Dialog.CreateFolder.Title)}`,
-            subText:  `${getLocalString(this.props.context!, LocalStrings.Dialog.CreateFolder.Description)}`,
+            subText: `${getLocalString(this.props.context!, LocalStrings.Dialog.CreateFolder.Description)}`,
           }}
           modalProps={{
             isBlocking: false,
